@@ -6,59 +6,54 @@
 //  Copyright © 2019 Kent State University. All rights reserved.
 //
 
-#include "Message.hpp"
-#include <string>
+#include "Packet.hpp"
 
 //
 // Base message definitions
 //
-Message::Message(int id){
+template<class T>
+Packet<T>::Packet(int id){
     _id = id;
     _targetId = "";
     _sourceId = "";
-    _delay = -1;
+    _delay = rand()%_DELAY_UPPER_BOUND;
 }
 
-Message::Message(int id, std::string to, std::string from){
+template<class T>
+Packet<T>::Packet(int id, std::string from){
     _id = id;
-    _targetId = to;
     _sourceId = from;
-    _delay = -1;
+    
+    srand((float)time(NULL));
+    _delay = rand()%_DELAY_UPPER_BOUND;;
 }
 
-Message::Message(const Message& rhs){
+template<class T>
+Packet<T>::Packet(const Message& rhs){
     _id = rhs._id;
     _targetId = rhs._targetId;
     _sourceId = rhs._sourceId;
 }
 
-Message::~Message(){
+template<class T>
+Packet<T>::~Packet(){
     // no memory allocated so nothing to do
 }
 
-Message& Message::operator=(const Message &rhs){
+template<class T>
+Packet<T>& Packet<T>::operator=(const Message &rhs){
     _id = rhs._id;
     _targetId = rhs._targetId;
     _sourceId = rhs._sourceId;
     return *this;
 }
 
-bool Message::operator==(const Message &rhs){
+template<class T>
+bool Packet<T>::operator==(const Message &rhs){
     return _id == rhs._id;
 }
 
-bool Message::operator!=(const Message &rhs){
+template<class T>
+bool Packet<T>::operator!=(const Message &rhs){
     return !(*this == rhs);
-}
-
-//
-// Basic message definitions (networking)
-//
-
-BasicMessage::BasicMessage(int id) : Message(id){
-    _text = "";
-}
-
-BasicMessage::BasicMessage(const BasicMessage& rhs) : Message(rhs){
-    _text = rhs._text;
 }
