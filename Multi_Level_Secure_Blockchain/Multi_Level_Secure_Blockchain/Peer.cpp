@@ -13,13 +13,17 @@
 //
 // Example Peer definitions
 //
+ExamplePeer::~ExamplePeer(){
+
+}
+
 ExamplePeer::ExamplePeer(std::string id) : Peer(id){
     counter =0;
 }
 
 void ExamplePeer::preformComputation(){
     counter++;
-    
+    std::cout<< "Peer:"<< _id<< " preforming computation"<<std::endl;
     std::map<std::string, Peer<ExampleMessage>>::iterator it;
     
     for ( it = _groupMembers.begin(); it != _groupMembers.end(); it++ )
