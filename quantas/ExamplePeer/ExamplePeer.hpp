@@ -42,6 +42,7 @@ namespace quantas{
         // methods that must be defined when deriving from Peer
         ExamplePeer                             (interfaceId);
         ExamplePeer                             (const ExamplePeer &rhs);
+        ExamplePeer                             (Peer* rhs);
         ~ExamplePeer                            ();
 
         // initialize the configuration of the system
@@ -49,7 +50,10 @@ namespace quantas{
         // perform one step of the Algorithm with the messages in inStream
         void                 performComputation ();
         // perform any calculations needed at the end of a round such as determine throughput (only ran once, not for every peer)
-        void                 endOfRound         (const vector<Peer*>& _peers);
+        void                 endOfRound         (vector<Peer*>& _peers);
+        
+        int msgsSent = 0;
+        bool changePeerType = false;
     };
 }
 #endif /* ExamplePeer_hpp */

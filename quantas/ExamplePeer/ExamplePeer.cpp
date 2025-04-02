@@ -8,11 +8,12 @@ You should have received a copy of the GNU General Public License along with QUA
 */
 
 #include "ExamplePeer.hpp"
+#include "ExamplePeer2.hpp"
 
 namespace quantas {
 
 	static bool registerExamplePeer = [](){
-		registerPeerType("ExamplePeer", 
+		PeerRegistry::registerPeerType("ExamplePeer", 
 			[](interfaceId pubId){ return new ExamplePeer(pubId); });
 		return true;
 	}();
@@ -35,42 +36,57 @@ namespace quantas {
 	void ExamplePeer::initParameters(const vector<Peer*>& _peers, json parameters) {
 		const vector<ExamplePeer*> peers = reinterpret_cast<vector<ExamplePeer*> const&>(_peers);
 		
-		cout << "Initializing parameters of simulation" << endl;
-
+		// Initializing parameters of simulation
 		if (parameters.contains("parameter1")) {
-			cout << "parameter1: " << parameters["parameter1"] << endl;
+			LogWriter::pushValue("parameter1", parameters["parameter1"]);
 		}
 
 		if (parameters.contains("parameter2")) {
-			cout << "parameter2: " << parameters["parameter2"] << endl;
+			LogWriter::pushValue("parameter2", parameters["parameter2"]);
 		}
 
-		if (parameters.contains("parameter3")) {
-			cout << "parameter3: " << parameters["parameter3"] << endl;
+		if (parameters.contains("changePeerType")) {
+			LogWriter::pushValue("changePeerType", parameters["changePeerType"]);
+			bool changePeerType = true;
 		}
 	}
 
 	void ExamplePeer::performComputation() {
-
-		cout << "Peer:" << publicId() << " performing computation" << endl;
+		LogWriter::pushValue("performs computation", publicId());
 
 		// Read messages from other peers
 		while (!inStreamEmpty()) {
 			ExampleMessage* newMsg = dynamic_cast<ExampleMessage*>(popInStream().getMessage());
-			cout << endl << std::to_string(publicId()) << " has receved a message from " << newMsg->aPeerId << endl;
-			cout << newMsg->message << endl;
+			json msg;
+			msg["to"] = publicId();
+			msg["from"] = newMsg->aPeerId;
+			msg["receivedRound"] = RoundManager::currentRound();
+			msg["contents"] = newMsg->message;
+			LogWriter::pushValue("receivedMessages", msg);
+			delete newMsg;
 		}
-		cout << endl;
 
-		// Send hello to everyone else
+		// Send hello to everyone
 		ExampleMessage* msg = new ExampleMessage();
-		msg->message = "Message: Hello From " + std::to_string(publicId()) + ". Sent on round: " + std::to_string(RoundManager::instance()->currentRound());
+		msg->message = "Message: Hello From " + std::to_string(publicId()) + ". Sent on round: " + std::to_string(RoundManager::currentRound());
 		msg->aPeerId = std::to_string(publicId());
 		broadcast(msg);
+		msgsSent += neighbors().size();
 	}
 
-	void ExamplePeer::endOfRound(const vector<Peer*>& _peers) {
-		const vector<ExamplePeer*> peers = reinterpret_cast<vector<ExamplePeer*> const&>(_peers);
-		cout << "End of round " << RoundManager::instance()->currentRound() << endl;
+	void ExamplePeer::endOfRound(vector<Peer*>& _peers) {
+		vector<ExamplePeer*> peers = reinterpret_cast<vector<ExamplePeer*>&>(_peers);
+		int sum = accumulate(peers.begin(), peers.end(), 0, [](int sum, auto p) {
+			return sum + p->msgsSent;
+		});
+		LogWriter::pushValue("sentMessages", sum);
+
+		if (RoundManager::currentRound() == 2) {
+			auto oldPeer = dynamic_cast<ExamplePeer*>(_peers[1]);
+			if (oldPeer) {
+				_peers[1] = new ExamplePeer2(oldPeer);
+				delete oldPeer;
+			}
+		}
 	}
 }
