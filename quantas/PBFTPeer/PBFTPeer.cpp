@@ -53,7 +53,7 @@ namespace quantas {
 			checkContents();
 	}
 
-	void PBFTPeer::endOfRound(const vector<Peer*>& _peers) {
+	void PBFTPeer::endOfRound(vector<Peer*>& _peers) {
 		const vector<PBFTPeer*> peers = reinterpret_cast<vector<PBFTPeer*> const&>(_peers);
 
 		/////////////////////////////////////////////
@@ -63,9 +63,10 @@ namespace quantas {
         //     peer->updateLeader(newLeader);
         // }
         ////////////////////////////////////////////
-
+		
 		double length = peers[0]->confirmedTrans.size();
 		LogWriter::pushValue("latency", latency / length);
+		LogWriter::pushValue("throughput", length);
 	}
 
 	void PBFTPeer::checkInStrm() {
@@ -86,7 +87,31 @@ namespace quantas {
 		}
 	}
 	void PBFTPeer::checkContents() {
-		if (status == "pre-prepare" && receivedMessages.size() >= sequenceNum + 1) {
+		
+		if (publicId() == getLeader() && status == "pre-prepare") {
+            for (int i = 0; i < transactions.size(); i++) {
+                bool skip = false;
+                for (int j = 0; j < confirmedTrans.size(); j++) {
+                    if (transactions[i]->trans == confirmedTrans[j]->trans) {
+                        skip = true;
+                        break;
+                    }
+                }
+                if (!skip) {
+                    status = "prepare";
+                    PBFTPeerMessage* message = transactions[i]->clone();
+                    message->messageType = "pre-prepare";
+                    message->Id = publicId();
+                    message->sequenceNum = sequenceNum;
+                    broadcast(message->clone());
+					if (receivedMessages.size() < sequenceNum + 1) {
+                        receivedMessages.push_back(vector<PBFTPeerMessage*>());
+                    }
+                    receivedMessages[sequenceNum].push_back(message);
+                    break;
+                }
+            }
+        } else if (status == "pre-prepare" && receivedMessages.size() >= sequenceNum + 1) {
 			for (int i = 0; i < receivedMessages[sequenceNum].size(); i++) {
 				PBFTPeerMessage* message = receivedMessages[sequenceNum][i];
 				if (message->messageType == "pre-prepare") {
@@ -131,8 +156,8 @@ namespace quantas {
 				confirmedTrans.push_back(receivedMessages[sequenceNum][0]->clone());
 				latency += RoundManager::currentRound() - receivedMessages[sequenceNum][0]->roundSubmitted;
 				sequenceNum++;
-				if (publicId() == 0) {
-					submitTrans(currentTransaction);
+				if (publicId() == getLeader()) {
+					submitTrans();
 				}
 				checkContents();
 			}
