@@ -4,17 +4,101 @@
   ],
   "experiments": [
     {
-      "logFile": "LinearChordScale20.txt",
+      "logFile": "LinearChordScale16.txt",
       "distribution": {
         "type": "uniform",
         "maxDelay": 1
       },
       "topology": {
-        "type": "ring",
-        "initialPeers": 20,
+        "type": "complete",
+        "initialPeers": 16,
         "initialPeerType": "LinearChordPeer"
       },
-      "tests": 10,
+      "tests": 5,
+      "rounds": 100
+    },
+    {
+      "logFile": "LinearChordScale32.txt",
+      "distribution": {
+        "type": "uniform",
+        "maxDelay": 1
+      },
+      "topology": {
+        "type": "complete",
+        "initialPeers": 32,
+        "initialPeerType": "LinearChordPeer"
+      },
+      "tests": 5,
+      "rounds": 100
+    },
+    {
+      "logFile": "LinearChordScale64.txt",
+      "distribution": {
+        "type": "uniform",
+        "maxDelay": 1
+      },
+      "topology": {
+        "type": "complete",
+        "initialPeers": 64,
+        "initialPeerType": "LinearChordPeer"
+      },
+      "tests": 5,
+      "rounds": 100
+    },
+    {
+      "logFile": "LinearChordScale128.txt",
+      "distribution": {
+        "type": "uniform",
+        "maxDelay": 1
+      },
+      "topology": {
+        "type": "complete",
+        "initialPeers": 128,
+        "initialPeerType": "LinearChordPeer"
+      },
+      "tests": 5,
+      "rounds": 100
+    },
+    {
+      "logFile": "LinearChordScale256.txt",
+      "distribution": {
+        "type": "uniform",
+        "maxDelay": 1
+      },
+      "topology": {
+        "type": "complete",
+        "initialPeers": 256,
+        "initialPeerType": "LinearChordPeer"
+      },
+      "tests": 5,
+      "rounds": 100
+    },
+    {
+      "logFile": "LinearChordScale512.txt",
+      "distribution": {
+        "type": "uniform",
+        "maxDelay": 1
+      },
+      "topology": {
+        "type": "complete",
+        "initialPeers": 512,
+        "initialPeerType": "LinearChordPeer"
+      },
+      "tests": 5,
+      "rounds": 100
+    },
+    {
+      "logFile": "LinearChordScale1024.txt",
+      "distribution": {
+        "type": "uniform",
+        "maxDelay": 1
+      },
+      "topology": {
+        "type": "complete",
+        "initialPeers": 1024,
+        "initialPeerType": "LinearChordPeer"
+      },
+      "tests": 5,
       "rounds": 100
     }
   ]
