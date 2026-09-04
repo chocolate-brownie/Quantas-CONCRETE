@@ -75,7 +75,7 @@ void DolevPeer::performComputation() {
     } else {
         correctBehavior();
     }
-    
+
 }
 
 void DolevPeer::endOfRound(std::vector<Peer *> &peers) {
@@ -102,7 +102,7 @@ void DolevPeer::checkInStrm() {
         unordered_set<interfaceId> path = msg["path"].get<unordered_set<interfaceId>>();
 
         // already sent this message, don't process again to avoid cycles
-        if (path.find(publicId()) != path.end()) continue; 
+        if (path.find(publicId()) != path.end()) continue;
 
         // if this message is directly from the sender, deliver immediately
         if (packet.sourceId() == sender && path.size() == 0) {
@@ -143,7 +143,7 @@ void DolevPeer::propagateMsg(int m, const unordered_set<interfaceId> &path, inte
     for (interfaceId peerId : path) {
         if (peerId == publicId()) {
             // already sent this message, don't propagate again to avoid cycles
-            return; 
+            return;
         }
     }
 
@@ -155,8 +155,8 @@ void DolevPeer::propagateMsg(int m, const unordered_set<interfaceId> &path, inte
 
 
 void DolevPeer::correctBehavior() {
-    
-    // if sender and first round then propagate message 
+
+    // if sender and first round then propagate message
     if (RoundManager::currentRound() == 1 && publicId() == sender) {
         json payload = buildMsg(0, {});
         broadcast(payload);
@@ -183,7 +183,7 @@ void DolevPeer::byzantineBehavior() {
         //cout << "Byzantine peer " << publicId() << " sent message 1" << endl;
         msgsSent += static_cast<int>(neighbors().size());
     }
-    
+
 }
 
 } // namespace quantas

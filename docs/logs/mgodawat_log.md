@@ -454,3 +454,5 @@ In this file I document what I do everyday during my internship.
 - Renamed the root build file to `Makefile`; automatic Makefile discovery and the CPA BoostMQ debug build passed.
 - Added Zed tasks/debug configuration and MTRCPeer helpers for selecting experiments, running topology batches, and summarizing reports.
 - Focused the BoostMQ README on the MTRCPeer CPA workflow; Python syntax, helper command interfaces, and Markdown whitespace checks passed.
+- Created Issue #57 for safe BoostMQ completion when messages remain queued at shutdown.
+- Created Issue #58 for CPA/Dolev leader-side aggregation of final algorithm results.

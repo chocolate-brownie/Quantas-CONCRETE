@@ -14,8 +14,8 @@ QUANTAS. If not, see <https://www.gnu.org/licenses/>.
 
 #include <string>
 #include <iostream>
-#include "CPAPeer.hpp" 
-#include "results.hpp" 
+#include "CPAPeer.hpp"
+#include "results.hpp"
 
 namespace quantas {
 
@@ -79,7 +79,7 @@ void CPAPeer::performComputation() {
     } else {
         correctBehavior();
     }
-    
+
 }
 
 void CPAPeer::endOfRound(std::vector<Peer *> &peers) {
@@ -105,7 +105,7 @@ void CPAPeer::checkInStrm() {
         int m = msg["m"];
 
         // check if we already delivered than do nothing
-        if (delivered) continue; 
+        if (delivered) continue;
 
         // add message to receivedMessages
         receivedMessages[srcId] = m;
@@ -150,8 +150,8 @@ void CPAPeer::propagateMsg(int m, vector<interfaceId> excludePeers) {
 
 
 void CPAPeer::correctBehavior() {
-    
-    // if sender and first round then propagate message 
+
+    // if sender and first round then propagate message
     if (RoundManager::currentRound() == 1 && publicId() == sender) {
         propagateMsg(0, {});
 
@@ -173,7 +173,7 @@ void CPAPeer::byzantineBehavior() {
         propagateMsg(1, {}); // fake message with m=1 instead of m=0
         //cout << "Byzantine peer " << publicId() << " sent message 1" << endl;
     }
-    
+
 }
 
 } // namespace quantas
