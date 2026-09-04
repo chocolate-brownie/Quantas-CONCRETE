@@ -224,7 +224,7 @@ Notes:
 - `topology.initialPeerType` must align with the string you registered in Step 2.
 - `parameters` is passed to `initParameters`; nest additional structures as needed.
 
-Update the root `makefile` (or override at invocation) to point to your JSON file:
+Update the root `Makefile` (or override at invocation) to point to your JSON file:
 
 ```sh
 make run INPUTFILE=quantas/AltBitPeer/AltBitUtility.json

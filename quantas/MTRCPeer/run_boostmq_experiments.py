@@ -10,6 +10,7 @@
 
 import argparse
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -33,12 +34,22 @@ repo_root = script_dir.parents[1]
 topologies_dir = script_dir / "topologies"
 completed_path = script_dir / "boostmq_experiments_ran.json"
 
-completed = set(json.loads(completed_path.read_text(encoding="utf-8")))
+if completed_path.exists():
+    completed_data = json.loads(completed_path.read_text(encoding="utf-8"))
+    if not isinstance(completed_data, list) or not all(
+        isinstance(name, str) for name in completed_data
+    ):
+        raise SystemExit(f"Invalid completed-topology list: {completed_path}")
+    completed = set(completed_data)
+else:
+    completed = set()
+
+peer_count_pattern = re.compile(rf"(?:^|_)n{args.n}(?:_|$)")
 topology_files = sorted(topologies_dir.glob("*.json"))
 run_count = 0
 
 for topology_file in topology_files:
-    if f"n{args.n}" not in topology_file.stem:
+    if not peer_count_pattern.search(topology_file.stem):
         continue
     if topology_file.name in completed:
         print(f"Skipping completed topology {topology_file.name}")

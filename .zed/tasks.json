@@ -1,0 +1,15 @@
+[
+  {
+    "label": "Run BoostMQ (leader + peers; debug build; CPA topology)",
+    "command": "make",
+    "args": [
+      "mq_debug",
+      "INPUTFILE=quantas/MTRCPeer/topologies/cpa_edge_remover_n50_k3_t1.json"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "shell": "system",
+    "save": "all"
+  }
+]

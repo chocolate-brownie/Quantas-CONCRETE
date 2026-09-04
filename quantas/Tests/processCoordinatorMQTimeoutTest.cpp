@@ -1,5 +1,5 @@
 /* @brief
-`mq_timeout_test` is a small test target in the `makefile` that checks the BoostMQ leader’s
+`mq_timeout_test` is a small test target in the `Makefile` that checks the BoostMQ leader’s
 **done-wait timeout behavior**.
 
 It builds/runs this file:

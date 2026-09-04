@@ -29,9 +29,9 @@ External libraries bundled in the repository:
 
 ## Building and Running the Abstract Simulator
 
-Clone the repository, pick the algorithm/input configuration you want to exercise, then build and run via the provided `makefile`.
+Clone the repository, pick the algorithm/input configuration you want to exercise, then build and run via the provided `Makefile`.
 
-1. Select an input JSON file by setting `INPUTFILE` in the root `makefile` (or override on the command line: `make run INPUTFILE=quantas/ExamplePeer/ExampleInput.json`). The chosen file also determines which algorithm sources are compiled.
+1. Select an input JSON file by setting `INPUTFILE` in the root `Makefile` (or override on the command line: `make run INPUTFILE=quantas/ExamplePeer/ExampleInput.json`). The chosen file also determines which algorithm sources are compiled.
 2. Build:
    ```sh
    make release
