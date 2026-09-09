@@ -1,10 +1,12 @@
 #include "BoostMqReportWriter.hpp"
 #include "BoostMqOutputPaths.hpp"
 #include "quantas/Common/Logger.hpp"
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -90,6 +92,7 @@ nlohmann::json BoostMqReportWriter::makeTestReport(const TestReportInfo& info) {
 
     testReport["peerOutputFiles"] = info.peerOutputFiles;
     testReport["transportReliability"] = info.transportReliability;
+    testReport["algoReliability"] = info.algoReliability;
 
     testReport["completedPeerCount"] = info.completedPeers.size();
     testReport["peerMetrics"] = info.peerMetrics;
@@ -149,12 +152,28 @@ nlohmann::json BoostMqReportWriter::makePeerOutputFiles(const std::string& logFi
 /* Main output operation: Write the final leader report to a file, stdout, or stderr according to
  * the configured path. */
 void BoostMqReportWriter::writeLeaderReport(const std::string& path, const nlohmann::json& report) {
+    // Keep both summaries together before the detailed fields in each test.
+    nlohmann::ordered_json outputReport = report;
+    if (outputReport.contains("tests") && outputReport.at("tests").is_array()) {
+        for (auto& test : outputReport["tests"]) {
+            nlohmann::ordered_json orderedTest = nlohmann::ordered_json::object();
+            for (const auto* key : {"algoReliability", "transportReliability"}) {
+                if (test.contains(key))
+                    orderedTest[key] = test.at(key);
+            }
+            for (const auto& [key, value] : test.items()) {
+                if (!orderedTest.contains(key))
+                    orderedTest[key] = value;
+            }
+            test = std::move(orderedTest);
+        }
+    }
     if (path == "cout") {
-        std::cout << report.dump(4) << '\n';
+        std::cout << outputReport.dump(4) << '\n';
         return;
     }
     if (path == "cerr") {
-        std::cerr << report.dump(4) << '\n';
+        std::cerr << outputReport.dump(4) << '\n';
         return;
     }
 
@@ -162,7 +181,7 @@ void BoostMqReportWriter::writeLeaderReport(const std::string& path, const nlohm
     if (!output.is_open()) {
         throw std::runtime_error("error: cannot open leader report file: " + path);
     }
-    output << report.dump(4) << '\n';
+    output << outputReport.dump(4) << '\n';
 }
 
 /* Main metrics operation: Read metrics for the supplied peer IDs. This can include a failed peer
@@ -198,8 +217,115 @@ bool BoostMqReportWriter::readPeerMetrics(const nlohmann::json& peerOutputFiles,
     return allOutputsValid;
 }
 
-/* Main metrics operation: Combine peer transport counters into one simple reliability summary for
- * the test. */
+/* Select the algorithm's calculation rules. Keep the report writable when a summary is
+ * unsupported, the test is incomplete, or a peer's algorithm metrics are invalid. */
+nlohmann::json BoostMqReportWriter::makeAlgorithmSummary(const std::string& peerType,
+                                                        const TestReportInfo& info) {
+    if (!info.success)
+        return {{"available", false}, {"reason", "Test failed or is incomplete"}};
+
+    if (peerType != "CPAPeer")
+        return {{"available", false}, {"reason", "No algorithm summary implemented for " + peerType}};
+
+    try {
+        auto summary = summarizeAlgoReliability(info.peerMetrics);
+        summary["available"] = true;
+        return summary;
+    } catch (const std::exception& ex) {
+        return {{"available", false}, {"reason", ex.what()}};
+    }
+}
+
+nlohmann::json BoostMqReportWriter::summarizeAlgoReliability(const nlohmann::json& peerMetrics) {
+    if (!peerMetrics.is_object() || peerMetrics.empty())
+        throw std::runtime_error("Cannot summarize algorithm metrics: no peer reports");
+
+    uint64_t cntDelivered = 0;      // All peers that delivered a value, including Byzantine peers.
+    uint64_t cntDeliveredRound = 0; // Sum of delivery rounds for those peers.
+    uint64_t cntCorrectDelivered = 0; // Non-Byzantine peers that delivered a value.
+    uint64_t cntCorrect = 0;          // All non-Byzantine peers, whether they delivered or not.
+    std::map<int, int> deliveryCount; // Maps each delivered value to its non-Byzantine peer count.
+    uint64_t totalDelivered = 0;      // Non-Byzantine peers that delivered, used for safety.
+
+    double avgDeliveryRound = 0.0; // Average local delivery round among peers that delivered.
+    double avgTermination = 0.0;   // Percentage of non-Byzantine peers that delivered.
+
+    // Among non-byz peers that delivered, the % sharing the most common value
+    double avgSafety = 0.0;
+
+    uint64_t totalMessagesSent = 0; // Total algorithm messages sent by all peers.
+    double avgMessagesSent = 0.0;   // All peers' sent messages divided by non-Byzantine peer count.
+
+    /* Read each peer's saved algorithm report for this test, not its live C++ object.
+     * Reject missing metrics and invalid delivery rounds. Count peers that delivered,
+     * add their delivery rounds, and count non-Byzantine peers separately.
+     * Group delivered values from non-Byzantine peers to measure agreement later.
+     * Also add the algorithm messages sent by all peers, including Byzantine peers. */
+    for (const auto& [id, metrics] : peerMetrics.items()) {
+        if (!metrics.contains("algorithmMetrics") || !metrics.at("algorithmMetrics").is_object() ||
+            metrics.at("algorithmMetrics").empty())
+            throw std::runtime_error("Missing algorithm metrics for peer " + id);
+
+        const auto& peer = metrics["algorithmMetrics"];
+
+        if (peer.at("delivered").get<bool>()) {
+            const auto& round = peer.at("delivery_round");
+            if (!round.is_number_integer() || round < 0)
+                throw std::runtime_error("Invalid delivery round for peer " + id);
+            ++cntDelivered;
+            cntDeliveredRound += round.get<uint64_t>();
+        }
+
+        if (!peer.at("is_byzantine").get<bool>()) {
+            ++cntCorrect;
+            if (peer.at("delivered").get<bool>() == true)
+                ++cntCorrectDelivered;
+        }
+
+        if (peer.at("delivered").get<bool>() && !peer.at("is_byzantine").get<bool>()) {
+            ++deliveryCount[peer.at("delivered_value").get<int>()];
+            ++totalDelivered;
+        }
+
+        totalMessagesSent += peer.at("messages_sent").get<uint64_t>();
+    }
+
+    /* Turn the collected counts into results for this test.
+     * Average the delivery rounds of peers that delivered. For safety, find the percentage
+     * of non-Byzantine delivered peers that share the most common delivered value.
+     * For termination, find the percentage of all non-Byzantine peers that delivered.
+     * Divide all peers' sent messages by the non-Byzantine peer count for average messages.
+     * Keep results at zero when there is nobody to divide by. Round safety, termination,
+     * and average messages to two decimal places, then return the results as JSON. */
+    if (cntDelivered > 0)
+        avgDeliveryRound = static_cast<double>(cntDeliveredRound) / cntDelivered;
+
+    if (totalDelivered > 0) {
+        for (const auto& [value, count] : deliveryCount)
+            avgSafety = std::max(avgSafety, static_cast<double>(count) / totalDelivered);
+        avgSafety = round(avgSafety * 10000.0) / 100.0;
+    }
+
+    if (cntCorrect > 0) {
+        avgTermination = static_cast<double>(cntCorrectDelivered) / cntCorrect;
+        avgTermination *= 100.0;                                // convert to percentage
+        avgTermination = round(avgTermination * 100.0) / 100.0; // round to 2 decimal places
+    }
+
+    if (cntCorrect > 0) {
+        avgMessagesSent = static_cast<double>(totalMessagesSent) / cntCorrect;
+        avgMessagesSent = round(avgMessagesSent * 100.0) / 100.0; // round to 2 decimal places
+    }
+
+    return nlohmann::json{{"avg_delivery_round", avgDeliveryRound},
+                          {"avg_termination", avgTermination},
+                          {"avg_safety", avgSafety},
+                          {"total_msg_sent", totalMessagesSent},
+                          {"avg_msg_sent", avgMessagesSent}};
+}
+
+/* Main metrics operation: Combine peer transport counters into one simple reliability summary
+ * for the test. */
 nlohmann::json
 BoostMqReportWriter::summarizeTransportReliability(const nlohmann::json& peerMetrics) {
     uint64_t sentTotal = 0;

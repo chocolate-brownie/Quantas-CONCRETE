@@ -295,8 +295,13 @@ int main(int argc, char* argv[]) {
                 testInfo.success = !testInfo.completionTimedOut &&
                                    completionResult.failedPeers.empty() &&
                                    testInfo.missingPeers.empty() && allOutputsValid;
+
                 testInfo.transportReliability =
                     bmqrep::summarizeTransportReliability(testInfo.peerMetrics);
+
+                testInfo.algoReliability =
+                    bmqrep::makeAlgorithmSummary(exp.initialPeerType, testInfo);
+
                 /* 4. Convert the collected facts to JSON and add this test to the experiment. */
                 allTestsSucceeded = allTestsSucceeded && testInfo.success;
 

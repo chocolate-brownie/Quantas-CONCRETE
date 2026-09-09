@@ -79,7 +79,7 @@ Each experiment writes a folder like this:
 
 ```text
 results/
-  <logFile>_EXP1/
+  01EXP_<logFile>/
     leader_report.json
     peer_0_TEST1.txt
 ```
@@ -87,8 +87,7 @@ results/
 `leader_report.json` is the main report. To summarize CPA transport results:
 
 ```sh
-python3 quantas/MTRCPeer/summarize_boostmq_reports.py \
-  --contains cpa_edge_remover
+python3 quantas/MTRCPeer/summarize_boostmq_reports.py --contains cpa_edge_remover
 ```
 
 ## If a run stops or crashes

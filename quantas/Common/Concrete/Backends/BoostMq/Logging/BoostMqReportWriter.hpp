@@ -24,6 +24,8 @@ class BoostMqReportWriter {
         nlohmann::json peerOutputFiles = nlohmann::json::object();
         nlohmann::json peerMetrics = nlohmann::json::object();
         nlohmann::json transportReliability = nlohmann::json::object();
+        nlohmann::json algoReliability = {{"available", false},
+                                          {"reason", "Algorithm summary not calculated"}};
         bool completionTimedOut{false};
         bool readyTimedOut{false};
         bool success{false};
@@ -51,6 +53,9 @@ class BoostMqReportWriter {
                                 const std::vector<interfaceId>& peerIds,
                                 nlohmann::json& peerMetrics);
     static nlohmann::json summarizeTransportReliability(const nlohmann::json& peerMetrics);
+    static nlohmann::json summarizeAlgoReliability(const nlohmann::json& peerMetrics);
+    static nlohmann::json makeAlgorithmSummary(const std::string& peerType,
+                                                const TestReportInfo& info);
 
   private:
     /* Utility: Read the JSON metrics written by one peer. */

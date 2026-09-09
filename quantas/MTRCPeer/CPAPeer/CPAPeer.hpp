@@ -27,16 +27,16 @@ class Packet;
 
 class CPAPeer : public Peer {
   public:
-    CPAPeer(NetworkInterface *networkInterface);
-    CPAPeer(const CPAPeer &rhs);
+    CPAPeer(NetworkInterface* networkInterface);
+    CPAPeer(const CPAPeer& rhs);
     ~CPAPeer() override;
 
-    void
-    initParameters(const std::vector<Peer *> &peers, json parameters) override;
+    void initParameters(const std::vector<Peer*>& peers, json parameters) override;
     void performComputation() override;
-    void endOfRound(std::vector<Peer *> &peers) override;
+    void endOfRound(std::vector<Peer*>& peers) override;
+    nlohmann::json collectAlgoMetrics() const override;
 
-    NetworkInterface *releaseNetworkInterface();
+    NetworkInterface* releaseNetworkInterface();
 
     int msgsSent = 0;
     bool changePeerType = false;
@@ -47,7 +47,7 @@ class CPAPeer : public Peer {
 
     bool delivered = false; // whether this peer has delivered the message or not
     int deliveryRound = -1; // round in which this peer delivered the message
-	  int mDelivered = -1; // the message that this peer delivered
+    int mDelivered = -1;    // the message that this peer delivered
 
     unordered_map<interfaceId, int> receivedMessages;
 

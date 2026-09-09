@@ -16,7 +16,10 @@ inline std::filesystem::path makeBoostMqExperimentDirectory(const std::string& l
         experimentName = "experiment";
     }
 
-    experimentName += "_EXP" + std::to_string(experimentIndex + 1);
+    std::string experimentNumber = std::to_string(experimentIndex + 1);
+    if (experimentNumber.size() < 2)
+        experimentNumber.insert(0, 1, '0');
+    experimentName = experimentNumber + "EXP_" + experimentName;
     const std::filesystem::path directory = std::filesystem::path("results") / experimentName;
 
     std::error_code error;

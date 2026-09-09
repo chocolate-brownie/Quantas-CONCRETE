@@ -7,10 +7,96 @@
 #include <unistd.h>
 
 int main() {
+    const auto record = [](bool delivered, bool byzantine, int round, int value, int sent) {
+        return nlohmann::json{{"algorithmMetrics", {{"delivered", delivered},
+            {"is_byzantine", byzantine}, {"delivery_round", round},
+            {"delivered_value", value}, {"messages_sent", sent}}}};
+    };
+    nlohmann::json algorithmPeers = {
+        {"0", record(true, false, 2, 0, 4)},
+        {"1", record(true, false, 4, 0, 6)},
+        {"2", record(true, false, 6, 1, 2)},
+        {"3", record(false, false, -1, -1, 0)},
+        {"4", record(true, true, 8, 1, 8)}};
+    const auto summary = quantas::BoostMqReportWriter::summarizeAlgoReliability(algorithmPeers);
+    assert(summary.at("avg_delivery_round") == 5.0);
+    assert(summary.at("avg_termination") == 75.0);
+    assert(summary.at("avg_safety") == 66.67);
+    assert(summary.at("total_msg_sent") == 20);
+    assert(summary.at("avg_msg_sent") == 5.0);
+    quantas::BoostMqReportWriter::TestReportInfo algorithmInfo;
+    algorithmInfo.success = true;
+    algorithmInfo.peerMetrics = algorithmPeers;
+    algorithmInfo.algoReliability =
+        quantas::BoostMqReportWriter::makeAlgorithmSummary("CPAPeer", algorithmInfo);
+    assert(algorithmInfo.algoReliability.at("available") == true);
+    assert(algorithmInfo.algoReliability.at("avg_safety") == 66.67);
+    assert(quantas::BoostMqReportWriter::makeTestReport(algorithmInfo).at("algoReliability") ==
+           algorithmInfo.algoReliability);
+    for (const auto* peerType : {"AltBitPeer", "DolevPeer"}) {
+        const auto unavailable =
+            quantas::BoostMqReportWriter::makeAlgorithmSummary(peerType, algorithmInfo);
+        assert(unavailable.at("available") == false);
+        assert(unavailable.contains("reason"));
+        assert(!unavailable.contains("avg_safety"));
+    }
+    algorithmInfo.success = false;
+    assert(quantas::BoostMqReportWriter::makeAlgorithmSummary("CPAPeer", algorithmInfo)
+               .at("available") == false);
+    algorithmInfo.success = true;
+    algorithmInfo.peerMetrics["1"] = nlohmann::json::object();
+    algorithmInfo.algoReliability =
+        quantas::BoostMqReportWriter::makeAlgorithmSummary("CPAPeer", algorithmInfo);
+    assert(algorithmInfo.algoReliability.at("available") == false);
+    assert(algorithmInfo.algoReliability.at("reason").get<std::string>().find("peer 1") !=
+           std::string::npos);
+    const auto invalidReport = quantas::BoostMqReportWriter::makeTestReport(algorithmInfo);
+    assert(invalidReport.at("success") == true);
+    assert(invalidReport.at("algoReliability").at("available") == false);
+    const auto none = quantas::BoostMqReportWriter::summarizeAlgoReliability(
+        {{"0", record(false, true, -1, -1, 0)}});
+    assert(none.at("avg_delivery_round") == 0.0);
+    assert(none.at("avg_termination") == 0.0);
+    assert(none.at("avg_safety") == 0.0);
+    assert(none.at("avg_msg_sent") == 0.0);
+    const auto rejects = [](const nlohmann::json& peers) {
+        bool rejected = false;
+        try {
+            quantas::BoostMqReportWriter::summarizeAlgoReliability(peers);
+        } catch (const std::exception&) {
+            rejected = true;
+        }
+        assert(rejected);
+    };
+    rejects(nlohmann::json::object());
+    algorithmPeers["1"] = nlohmann::json::object();
+    rejects(algorithmPeers);
+    algorithmPeers["1"] = {{"algorithmMetrics", nlohmann::json::object()}};
+    rejects(algorithmPeers);
+    algorithmPeers["1"] = record(true, false, -1, 0, 6);
+    rejects(algorithmPeers);
+    algorithmPeers["1"]["algorithmMetrics"]["delivery_round"] = 1.5;
+    rejects(algorithmPeers);
+
     namespace fs = std::filesystem;
     const fs::path testDirectory =
         fs::temp_directory_path() / ("quantas_report_test_" + std::to_string(::getpid()));
     fs::create_directories(testDirectory);
+
+    const fs::path orderedPath = testDirectory / "leader_report.json";
+    const nlohmann::json orderingReport = {{"tests", nlohmann::json::array({
+        {{"algoReliability", {{"available", true}}},
+         {"transportReliability", {{"sent_total", 20}}},
+         {"completedPeerCount", 5}, {"peerMetrics", algorithmPeers}},
+        {{"testIndex", 1}, {"success", false}}
+    })}};
+    quantas::BoostMqReportWriter::writeLeaderReport(orderedPath.string(), orderingReport);
+    std::ifstream orderedInput(orderedPath);
+    const auto orderedReport = nlohmann::ordered_json::parse(orderedInput);
+    auto field = orderedReport.at("tests").at(0).begin();
+    assert(field.key() == "algoReliability");
+    assert((++field).key() == "transportReliability");
+    assert(nlohmann::json(orderedReport) == orderingReport);
 
     const fs::path validPath = testDirectory / "peer_0.json";
     const fs::path malformedPath = testDirectory / "peer_1.json";
@@ -89,13 +175,20 @@ int main() {
 
     const std::string leaderPath =
         quantas::BoostMqReportWriter::makeLeaderReportPath("AltBitdropProb0.txt", 0);
-    assert(leaderPath == "results/AltBitdropProb0_EXP1/leader_report.json");
+    assert(leaderPath == "results/01EXP_AltBitdropProb0/leader_report.json");
     const nlohmann::json peerPaths =
         quantas::BoostMqReportWriter::makePeerOutputFiles("AltBitdropProb0.txt", 0, 2, 2);
-    assert(peerPaths.at("0") == "results/AltBitdropProb0_EXP1/peer_0_TEST2.txt");
-    assert(peerPaths.at("1") == "results/AltBitdropProb0_EXP1/peer_1_TEST2.txt");
+    assert(peerPaths.at("0") == "results/01EXP_AltBitdropProb0/peer_0_TEST2.txt");
+    assert(peerPaths.at("1") == "results/01EXP_AltBitdropProb0/peer_1_TEST2.txt");
+
+    assert(quantas::BoostMqReportWriter::makeLeaderReportPath("AltBitdropProb0.txt", 8) ==
+           "results/09EXP_AltBitdropProb0/leader_report.json");
+    assert(quantas::BoostMqReportWriter::makeLeaderReportPath("AltBitdropProb0.txt", 9) ==
+           "results/10EXP_AltBitdropProb0/leader_report.json");
 
     fs::remove_all(testDirectory);
-    fs::remove_all("results/AltBitdropProb0_EXP1");
+    fs::remove_all("results/01EXP_AltBitdropProb0");
+    fs::remove_all("results/09EXP_AltBitdropProb0");
+    fs::remove_all("results/10EXP_AltBitdropProb0");
     return 0;
 }

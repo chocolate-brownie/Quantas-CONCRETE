@@ -3,6 +3,7 @@
 #include "quantas/Common/Concrete/Backends/BoostMq/Logging/BoostMqOutputPaths.hpp"
 #include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.hpp"
 #include "quantas/Common/Concrete/Runtime/Config/RuntimeConfig.hpp"
+#include "quantas/Common/Concrete/Runtime/Metrics/TransportMetrics.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/LogWriter.hpp"
 #include "quantas/Common/Logger.hpp"
@@ -284,6 +285,9 @@ void emitFinalExperimentMetrics(const std::chrono::high_resolution_clock::time_p
     quantas::LogWriter::setValue("Peak Memory KB", static_cast<double>(getPeakMemoryKB()));
     quantas::LogWriter::setValue(
         "transportMetrics", quantas::makeTransportMetricsJson(transportMetrics, dataQueueCapacity));
+
+    quantas::LogWriter::setValue("algorithmMetrics", localPeers.front()->collectAlgoMetrics());
+
     QUANTAS_LOG_INFO("runner") << "printing output";
     quantas::LogWriter::print();
     QUANTAS_LOG_INFO("runner") << "output printed";

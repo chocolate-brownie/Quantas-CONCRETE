@@ -18,9 +18,7 @@ using namespace boost::interprocess;
 
 namespace quantas {
 namespace {
-std::string peerDataQueueName(interfaceId id) {
-    return "peer_" + std::to_string(id) + "_data";
-}
+std::string peerDataQueueName(interfaceId id) { return "peer_" + std::to_string(id) + "_data"; }
 } // namespace
 
 NetworkInterfaceConcreteMQ::NetworkInterfaceConcreteMQ() = default;
@@ -31,9 +29,7 @@ NetworkInterfaceConcreteMQ::NetworkInterfaceConcreteMQ(interfaceId pubId)
 NetworkInterfaceConcreteMQ::NetworkInterfaceConcreteMQ(interfaceId pubId, interfaceId internalId)
     : NetworkInterface(pubId, internalId) {}
 
-NetworkInterfaceConcreteMQ::~NetworkInterfaceConcreteMQ() {
-    clearAll();
-}
+NetworkInterfaceConcreteMQ::~NetworkInterfaceConcreteMQ() { clearAll(); }
 
 void NetworkInterfaceConcreteMQ::configure(interfaceId id, std::set<interfaceId> neighbors,
                                            std::size_t dataSendTimeoutMs) {
@@ -45,7 +41,8 @@ void NetworkInterfaceConcreteMQ::configure(interfaceId id, std::set<interfaceId>
     std::ostringstream neighborList;
     bool first = true;
     for (const auto neighbor : _neighbors) {
-        if (!first) neighborList << ',';
+        if (!first)
+            neighborList << ',';
         neighborList << neighbor;
         first = false;
     }
@@ -64,7 +61,8 @@ void NetworkInterfaceConcreteMQ::configure(interfaceId id, std::set<interfaceId>
   → write Packet to boost::archive::binary_oarchive backed by std::stringstream
   → send stringstream's bytes over MQ */
 void NetworkInterfaceConcreteMQ::unicastTo(nlohmann::json msg, const interfaceId& dest) {
-    if (_neighbors.find(dest) == _neighbors.end()) return;
+    if (_neighbors.find(dest) == _neighbors.end())
+        return;
     Packet p;
     p.setSource(publicId());
     p.setTarget(dest);
@@ -81,11 +79,10 @@ void NetworkInterfaceConcreteMQ::unicastTo(nlohmann::json msg, const interfaceId
         std::string queueName = peerDataQueueName(dest);
         message_queue mq(open_only, queueName.c_str());
         if (bytes.size() > mq.get_max_msg_size())
-            throw std::runtime_error(
-                "unicastTo: packet to peer_" + std::to_string(dest) + " is " +
-                std::to_string(bytes.size()) + " bytes, exceeds queue limit of " +
-                std::to_string(mq.get_max_msg_size())
-            );
+            throw std::runtime_error("unicastTo: packet to peer_" + std::to_string(dest) + " is " +
+                                     std::to_string(bytes.size()) +
+                                     " bytes, exceeds queue limit of " +
+                                     std::to_string(mq.get_max_msg_size()));
 
         /* Bound the send so a full destination queue fails the test instead of
          * blocking the peer forever. */
@@ -104,9 +101,8 @@ void NetworkInterfaceConcreteMQ::unicastTo(nlohmann::json msg, const interfaceId
         _transportMetrics.sent++;
 
     } catch (const interprocess_exception& ex) {
-        throw std::runtime_error(
-            "unicastTo: failed to open peer_" + std::to_string(dest) + " queue: " + ex.what()
-        );
+        throw std::runtime_error("unicastTo: failed to open peer_" + std::to_string(dest) +
+                                 " queue: " + ex.what());
     }
 }
 
@@ -137,8 +133,7 @@ void NetworkInterfaceConcreteMQ::receive() {
 
             // Compute latency
             auto nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                             std::chrono::system_clock::now().time_since_epoch()
-            )
+                             std::chrono::system_clock::now().time_since_epoch())
                              .count();
 
             std::int64_t latency = nowNs - p.getSendTime();
@@ -154,16 +149,10 @@ void NetworkInterfaceConcreteMQ::receive() {
     }
 }
 
-void NetworkInterfaceConcreteMQ::clearAll() {
-    NetworkInterface::clearAll();
-}
+void NetworkInterfaceConcreteMQ::clearAll() { NetworkInterface::clearAll(); }
 
-TransportMetrics NetworkInterfaceConcreteMQ::transportMetrics() const {
-    return _transportMetrics;
-}
+TransportMetrics NetworkInterfaceConcreteMQ::transportMetrics() const { return _transportMetrics; }
 
-void NetworkInterfaceConcreteMQ::resetTransportMetrics() {
-    _transportMetrics = {};
-}
+void NetworkInterfaceConcreteMQ::resetTransportMetrics() { _transportMetrics = {}; }
 
 } // namespace quantas

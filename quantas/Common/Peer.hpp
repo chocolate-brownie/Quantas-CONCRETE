@@ -20,10 +20,11 @@ along with QUANTAS. If not, see <https://www.gnu.org/licenses/>.
 #define PEER_HPP
 
 #include "Abstract/NetworkInterfaceAbstract.hpp" // IWYU pragma: keep
-#include "quantas/Common/Concrete/Backends/TCP/NetworkInterfaceConcrete.hpp" // IWYU pragma: keep
 #include "LogWriter.hpp"
 #include "NetworkInterface.hpp"
 #include "RoundManager.hpp"
+#include "quantas/Common/Concrete/Backends/TCP/NetworkInterfaceConcrete.hpp" // IWYU pragma: keep
+#include "Json.hpp"
 #include <functional>
 #include <iostream>
 #include <stdexcept>
@@ -39,24 +40,26 @@ class Peer;
 
 class PeerRegistry {
   public:
-    static PeerRegistry *instance() {
+    static PeerRegistry* instance() {
         static PeerRegistry s;
         return &s;
     }
 
-    static Peer *makePeer(const std::string &type, interfaceId pubId = 0) {
-        PeerRegistry *inst = instance();
+    static Peer* makePeer(const std::string& type, interfaceId pubId = 0) {
+        PeerRegistry* inst = instance();
         if (inst->registry.bucket_count() == 0)
-            throw std::runtime_error("unordered_map has zero buckets in makePeer() in file Peer.hpp"
-            );
+            throw std::runtime_error(
+                "unordered_map has zero buckets in makePeer() in file Peer.hpp");
         auto it = inst->registry.find(type);
-        if (it == inst->registry.end()) { throw std::runtime_error("Unknown peer type: " + type); }
+        if (it == inst->registry.end()) {
+            throw std::runtime_error("Unknown peer type: " + type);
+        }
         return it->second(pubId);
     }
 
-    static bool
-    registerPeerType(const std::string &name, std::function<Peer *(interfaceId)> factory) {
-        PeerRegistry *inst = instance();
+    static bool registerPeerType(const std::string& name,
+                                 std::function<Peer*(interfaceId)> factory) {
+        PeerRegistry* inst = instance();
         bool result = inst->registry.insert(std::make_pair(name, factory)).second;
         if (!result) {
             std::cout << "Peer of type:" << name << " already registered." << std::endl;
@@ -69,22 +72,22 @@ class PeerRegistry {
   private:
     // copying and creation prohibited
     PeerRegistry() {}
-    PeerRegistry(const PeerRegistry &) = delete;
-    PeerRegistry &operator=(const PeerRegistry &) = delete;
+    PeerRegistry(const PeerRegistry&) = delete;
+    PeerRegistry& operator=(const PeerRegistry&) = delete;
 
-    std::unordered_map<std::string, std::function<Peer *(interfaceId)>> registry;
+    std::unordered_map<std::string, std::function<Peer*(interfaceId)>> registry;
 };
 
 // The base Peer class
 class Peer {
   public:
     inline Peer() {}
-    inline Peer(NetworkInterface *networkInterface) : _networkInterface(networkInterface) {}
-    inline Peer(const Peer &rhs){};
-    inline virtual ~Peer(){};
+    inline Peer(NetworkInterface* networkInterface) : _networkInterface(networkInterface) {}
+    inline Peer(const Peer& rhs) {};
+    inline virtual ~Peer() {};
 
     // Runtime layer end of experiment does nothing unless it depends on an algorithm override
-    virtual void endOfExperiment(std::vector<Peer *> &peers) {}
+    virtual void endOfExperiment(std::vector<Peer*>& peers) {}
 
     virtual void clearInterface() {
         if (_networkInterface != nullptr) {
@@ -94,13 +97,18 @@ class Peer {
         }
     }
 
+    // Return this peer's algorithm metrics, or an empty object if not implemented.
+    virtual nlohmann::json collectAlgoMetrics() const { return nlohmann::json::object(); }
+
     /* Called once after constructing all peers (subclass can parse 'parameters'
      * as needed) */
-    virtual void initParameters(const std::vector<Peer *> &peers, json parameters) {}
+    virtual void initParameters(const std::vector<Peer*>& peers, json parameters) {}
 
     // try to run performComputation though it may not
     virtual void tryPerformComputation() {
-        if (!isCrashed()) { performComputation(); }
+        if (!isCrashed()) {
+            performComputation();
+        }
     };
 
     // Main algorithmic step that each Peer runs each round
@@ -108,7 +116,7 @@ class Peer {
 
     // Called after performComputation in each round (subclass can override to
     // collect metrics, etc.)
-    virtual void endOfRound(std::vector<Peer *> &peers) {}
+    virtual void endOfRound(std::vector<Peer*>& peers) {}
 
     bool isCrashed() { return (_crashRecoveryRound > RoundManager::currentRound()); }
     void setCrashRecoveryRound(size_t crashRecoveryRound) {
@@ -118,7 +126,7 @@ class Peer {
     ////////////////// Network Interface direct acccss ////////////////////
 
     // safe way to replace a peer's NetworkInterfafce after construction.
-    void setNetworkInterface(NetworkInterface *networkInterface) {
+    void setNetworkInterface(NetworkInterface* networkInterface) {
         if (networkInterface == nullptr)
             throw std::invalid_argument("networkInterface cannot be null");
 
@@ -127,7 +135,7 @@ class Peer {
     }
 
     // getters
-    NetworkInterface *getNetworkInterface() const { return _networkInterface; };
+    NetworkInterface* getNetworkInterface() const { return _networkInterface; };
     interfaceId publicId() const { return _networkInterface->publicId(); };
     interfaceId internalId() const { return _networkInterface->internalId(); };
     std::set<interfaceId> neighbors() const { return _networkInterface->neighbors(); };
@@ -136,15 +144,15 @@ class Peer {
     void removeNeighbor(interfaceId nbr) { _networkInterface->removeNeighbor(nbr); };
 
     // Send messages to to others using these
-    virtual void unicastTo(json msg, const interfaceId &dest) {
+    virtual void unicastTo(json msg, const interfaceId& dest) {
         _networkInterface->unicastTo(msg, dest);
     };
     virtual void unicast(json msg) { _networkInterface->unicast(msg); };
-    virtual void multicast(json msg, const std::set<interfaceId> &targets) {
+    virtual void multicast(json msg, const std::set<interfaceId>& targets) {
         _networkInterface->multicast(msg, targets);
     };
     virtual void broadcast(json msg) { _networkInterface->broadcast(msg); };
-    virtual void broadcastBut(json msg, const interfaceId &id) {
+    virtual void broadcastBut(json msg, const interfaceId& id) {
         _networkInterface->broadcastBut(msg, id);
     };
     virtual void randomMulticast(json msg) { _networkInterface->randomMulticast(msg); };
@@ -161,7 +169,7 @@ class Peer {
 
   protected:
     size_t _crashRecoveryRound = 0;
-    NetworkInterface *_networkInterface = nullptr;
+    NetworkInterface* _networkInterface = nullptr;
 };
 
 } // namespace quantas

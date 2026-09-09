@@ -12,16 +12,22 @@ You should have received a copy of the GNU General Public License along with
 QUANTAS. If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include <string>
-#include <iostream>
 #include "CPAPeer.hpp"
 #include "results.hpp"
+#include <iostream>
+#include <string>
 
 namespace quantas {
 
-int count(const std::unordered_map<interfaceId, int> &receivedMessages, int m) {
+nlohmann::json CPAPeer::collectAlgoMetrics() const {
+    return {{"peer_id", publicId()},           {"is_byzantine", isByzantine},
+            {"delivered", delivered},          {"delivered_value", mDelivered},
+            {"delivery_round", deliveryRound}, {"messages_sent", msgsSent}};
+}
+
+int count(const std::unordered_map<interfaceId, int>& receivedMessages, int m) {
     int cnt = 0;
-    for (const auto &entry : receivedMessages){
+    for (const auto& entry : receivedMessages) {
         if (entry.second == m) {
             cnt++;
         }
@@ -29,9 +35,10 @@ int count(const std::unordered_map<interfaceId, int> &receivedMessages, int m) {
     return cnt;
 }
 
-vector<interfaceId> getPeersWithMsg(const std::unordered_map<interfaceId, int> &receivedMessages, int m) {
+vector<interfaceId> getPeersWithMsg(const std::unordered_map<interfaceId, int>& receivedMessages,
+                                    int m) {
     vector<interfaceId> peers;
-    for (const auto &entry : receivedMessages){
+    for (const auto& entry : receivedMessages) {
         if (entry.second == m) {
             peers.push_back(entry.first);
         }
@@ -45,9 +52,9 @@ static bool registerCPAPeer = []() {
     });
 }();
 
-CPAPeer::CPAPeer(NetworkInterface *networkInterface): Peer(networkInterface) {}
+CPAPeer::CPAPeer(NetworkInterface* networkInterface) : Peer(networkInterface) {}
 
-CPAPeer::CPAPeer(const CPAPeer &rhs) : Peer(rhs) {
+CPAPeer::CPAPeer(const CPAPeer& rhs) : Peer(rhs) {
     msgsSent = rhs.msgsSent;
     changePeerType = rhs.changePeerType;
     ts = rhs.ts;
@@ -62,7 +69,7 @@ CPAPeer::CPAPeer(const CPAPeer &rhs) : Peer(rhs) {
 
 CPAPeer::~CPAPeer() = default;
 
-void CPAPeer::initParameters(const std::vector<Peer *> &peers, json parameters) {
+void CPAPeer::initParameters(const std::vector<Peer*>& peers, json parameters) {
     ts = parameters.value("ts", 100);
     tl = parameters.value("tl", 100);
     sender = parameters.value("sender", 0);
@@ -79,10 +86,9 @@ void CPAPeer::performComputation() {
     } else {
         correctBehavior();
     }
-
 }
 
-void CPAPeer::endOfRound(std::vector<Peer *> &peers) {
+void CPAPeer::endOfRound(std::vector<Peer*>& peers) {
     if (RoundManager::currentRound() == RoundManager::lastRound() && publicId() == 0) {
         json results = saveResults(peers);
         LogWriter::pushValue("results", results);
@@ -90,8 +96,8 @@ void CPAPeer::endOfRound(std::vector<Peer *> &peers) {
     }
 }
 
-NetworkInterface *CPAPeer::releaseNetworkInterface() {
-    NetworkInterface *iface = _networkInterface;
+NetworkInterface* CPAPeer::releaseNetworkInterface() {
+    NetworkInterface* iface = _networkInterface;
     _networkInterface = nullptr;
     return iface;
 }
@@ -105,7 +111,8 @@ void CPAPeer::checkInStrm() {
         int m = msg["m"];
 
         // check if we already delivered than do nothing
-        if (delivered) continue;
+        if (delivered)
+            continue;
 
         // add message to receivedMessages
         receivedMessages[srcId] = m;
@@ -115,19 +122,20 @@ void CPAPeer::checkInStrm() {
             deliveryRound = RoundManager::currentRound();
             mDelivered = m;
             propagateMsg(m, getPeersWithMsg(receivedMessages, m));
-            // cout << "Peer " << publicId() << " delivered message " << m << " in round " << deliveryRound << endl;
+            // cout << "Peer " << publicId() << " delivered message " << m << " in round " <<
+            // deliveryRound << endl;
             continue;
         }
 
         // check if we can deliver the message
-        if (count(receivedMessages, m) >= ts+1) {
+        if (count(receivedMessages, m) >= ts + 1) {
             delivered = true;
             deliveryRound = RoundManager::currentRound();
             mDelivered = m;
             propagateMsg(m, getPeersWithMsg(receivedMessages, m));
-            // cout << "Peer " << publicId() << " delivered message " << m << " in round " << deliveryRound << endl;
+            // cout << "Peer " << publicId() << " delivered message " << m << " in round " <<
+            // deliveryRound << endl;
         }
-
     }
 }
 
@@ -139,15 +147,17 @@ json CPAPeer::buildMsg(int m) const {
 
 void CPAPeer::propagateMsg(int m, vector<interfaceId> excludePeers) {
     for (interfaceId peerId : neighbors()) {
-        if (peerId == publicId()) continue;
-        if (std::find(excludePeers.begin(), excludePeers.end(), peerId) != excludePeers.end()) continue;
-        // cout << "Peer " << publicId() << " propagating message " << m << " to peer " << peerId << endl;
+        if (peerId == publicId())
+            continue;
+        if (std::find(excludePeers.begin(), excludePeers.end(), peerId) != excludePeers.end())
+            continue;
+        // cout << "Peer " << publicId() << " propagating message " << m << " to peer " << peerId <<
+        // endl;
         json newMsg = buildMsg(m);
         unicastTo(newMsg, peerId);
         msgsSent++;
     }
 }
-
 
 void CPAPeer::correctBehavior() {
 
@@ -158,7 +168,8 @@ void CPAPeer::correctBehavior() {
         delivered = true;
         deliveryRound = RoundManager::currentRound();
         mDelivered = 0;
-        //cout << "Sender " << publicId() << " delivered message 0 in round " << deliveryRound << endl;
+        // cout << "Sender " << publicId() << " delivered message 0 in round " << deliveryRound <<
+        // endl;
     }
 
     // check messages in inStream and propagate if valid
@@ -171,9 +182,8 @@ void CPAPeer::byzantineBehavior() {
     // propagate a fake message in the first round
     if (RoundManager::currentRound() == 1) {
         propagateMsg(1, {}); // fake message with m=1 instead of m=0
-        //cout << "Byzantine peer " << publicId() << " sent message 1" << endl;
+        // cout << "Byzantine peer " << publicId() << " sent message 1" << endl;
     }
-
 }
 
 } // namespace quantas

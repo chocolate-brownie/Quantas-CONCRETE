@@ -41,25 +41,14 @@ struct TransportMetrics {
     “reliable delivery accepted by transport.” */
 };
 
-inline nlohmann::json
-makeTransportMetricsJson(const TransportMetrics& metrics, std::size_t dataQueueCapacity) {
+inline nlohmann::json makeTransportMetricsJson(const TransportMetrics& metrics,
+                                               std::size_t dataQueueCapacity) {
     return {
-        // Messages successfully added to other peers' queues.
         {"sent", metrics.sent},
-
-        // Messages removed from this peer's queue.
         {"received_raw", metrics.receivedRaw},
-
-        // Received messages successfully passed to the peer.
         {"delivered_to_instream", metrics.deliveredToInstream},
-
-        // Messages dropped because a destination queue stayed full.
         {"dropped_backpressure", metrics.droppedBackpressure},
-
-        // Maximum number of messages this peer's queue can hold.
         {"data_queue_capacity", dataQueueCapacity},
-
-        // Largest number of waiting messages observed in this peer's queue.
         {"peak_observed_queue_usage", metrics.peakQueueUsage},
     };
 }

@@ -17,8 +17,9 @@ class NetworkInterfaceConcreteMQ : public NetworkInterface {
   private:
     std::atomic<bool> _configured{false};
     std::optional<boost::interprocess::message_queue> _myInbox;
-    TransportMetrics _transportMetrics;
     std::size_t _dataSendTimeoutMs{BoostMqQueueConfig::DEFAULT_DATA_SEND_TIMEOUT_MS};
+
+    TransportMetrics _transportMetrics;
 
   public:
     NetworkInterfaceConcreteMQ();
@@ -30,7 +31,7 @@ class NetworkInterfaceConcreteMQ : public NetworkInterface {
     configure(interfaceId id, std::set<interfaceId> neighbors,
               std::size_t dataSendTimeoutMs = BoostMqQueueConfig::DEFAULT_DATA_SEND_TIMEOUT_MS);
 
-    void unicastTo(nlohmann::json msg, const interfaceId &dest) override;
+    void unicastTo(nlohmann::json msg, const interfaceId& dest) override;
     void receive() override;
 
     void clearAll() override;
@@ -38,6 +39,7 @@ class NetworkInterfaceConcreteMQ : public NetworkInterface {
     void requestStop();
 
     TransportMetrics transportMetrics() const;
+
     void resetTransportMetrics();
 };
 } // namespace quantas
