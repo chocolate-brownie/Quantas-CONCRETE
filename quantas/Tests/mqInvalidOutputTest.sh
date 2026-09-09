@@ -6,7 +6,7 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 launcher="$repo_root/quantas/Common/Concrete/Backends/BoostMq/Entrypoints/runBoostMq.sh"
 leader="$repo_root/build/debug/quantas_mq_leader.exe"
 peer="$repo_root/build/tests/mq_invalid_output_peer.exe"
-result_dir="$repo_root/results/01EXP_mqInvalidOutput"
+result_dir="$repo_root/Results/01EXP_mqInvalidOutput"
 report="$result_dir/leader_report.json"
 
 cleanup() {

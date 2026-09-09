@@ -4,7 +4,7 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 input_file=quantas/Tests/BoostMqResearcherContractInput.json
-result_dir=results/01EXP_mqResearcherContract
+result_dir=Results/01EXP_mqResearcherContract
 report=$result_dir/leader_report.json
 peer_outputs=(
 	"$result_dir/peer_0_TEST1.json"

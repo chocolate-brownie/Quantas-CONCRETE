@@ -4,7 +4,7 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 input_file=quantas/Tests/BoostMqMixedCountsInput.json
-result_dirs=(results/01EXP_mqCountsFirst results/02EXP_mqCountsSecond)
+result_dirs=(Results/01EXP_mqCountsFirst Results/02EXP_mqCountsSecond)
 
 cleanup_test_state() {
 	make --no-print-directory -s -C "$repo_root" mq_cleanup >/dev/null 2>&1 || true
@@ -42,8 +42,8 @@ import sys
 
 root = pathlib.Path(sys.argv[1])
 expected = [
-    ("results/01EXP_mqCountsFirst/leader_report.json", 2, 1, 1),
-    ("results/02EXP_mqCountsSecond/leader_report.json", 3, 2, 2),
+    ("Results/01EXP_mqCountsFirst/leader_report.json", 2, 1, 1),
+    ("Results/02EXP_mqCountsSecond/leader_report.json", 3, 2, 2),
 ]
 
 for relative_path, peers, tests, rounds in expected:

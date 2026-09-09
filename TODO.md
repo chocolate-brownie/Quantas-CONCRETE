@@ -3,8 +3,9 @@
 ## Validation update — 2026-09-09
 
 - CPA peer metrics and per-test leader algorithm summaries are implemented; cross-test summaries remain pending.
-- New output folders use `01EXP_<logFile>` naming; existing result folders are unchanged.
+- Output folders now use `Results/01EXP_<logFile>`; existing reports were migrated locally with peer-file references updated.
 - Report-writer tests pass, including `09EXP`/`10EXP` paths; updated shell tests pass syntax checks, and `git diff --check` passes.
+- Release build and a three-peer, two-test CPA smoke run pass with `Results/` output; Makefile cleanup was tested in an isolated temporary directory.
 
 ## First priority: CPA/Dolev results — Issue #58
 

@@ -7,7 +7,7 @@ launcher="$repo_root/quantas/Common/Concrete/Backends/BoostMq/Entrypoints/runBoo
 leader="$repo_root/build/debug/quantas_mq_leader.exe"
 peer="$repo_root/build/tests/mq_data_delivery_failure_peer.exe"
 input="$repo_root/quantas/Tests/BoostMqRepeatedFailureInput.json"
-result_dir="$repo_root/results/01EXP_mqDataDeliveryFailure"
+result_dir="$repo_root/Results/01EXP_mqDataDeliveryFailure"
 report="$result_dir/leader_report.json"
 run_log=$(mktemp)
 

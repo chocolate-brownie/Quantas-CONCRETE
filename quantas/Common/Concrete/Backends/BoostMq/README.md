@@ -5,7 +5,7 @@ BoostMQ runs the MTRCPeer CPA experiment as real Linux processes.
 - One leader process controls an experiment.
 - One peer process is started for every CPA peer.
 - Peers send messages through Boost message queues.
-- Results are written to `results/`.
+- Results are written to `Results/`.
 
 ## Requirements
 
@@ -78,7 +78,7 @@ successful files in `quantas/MTRCPeer/boostmq_experiments_ran.json`.
 Each experiment writes a folder like this:
 
 ```text
-results/
+Results/
   01EXP_<logFile>/
     leader_report.json
     peer_0_TEST1.txt

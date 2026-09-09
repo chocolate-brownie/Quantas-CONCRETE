@@ -10,9 +10,9 @@ output_files=(
 	build/tests/initParametersEmpty.json
 )
 result_dirs=(
-	results/01EXP_initParametersExample
-	results/02EXP_initParametersExample2
-	results/03EXP_initParametersEmpty
+	Results/01EXP_initParametersExample
+	Results/02EXP_initParametersExample2
+	Results/03EXP_initParametersEmpty
 )
 
 cleanup_test_state() {
@@ -36,17 +36,17 @@ root = pathlib.Path(sys.argv[1])
 checks = [
     (
         "build/tests/initParametersExample.json",
-        "results/01EXP_initParametersExample/peer_0_TEST1.json",
+        "Results/01EXP_initParametersExample/peer_0_TEST1.json",
         {"parameter1": 731, "parameter2": "example-peer", "changePeerType": False},
     ),
     (
         "build/tests/initParametersExample2.json",
-        "results/02EXP_initParametersExample2/peer_0_TEST1.json",
+        "Results/02EXP_initParametersExample2/peer_0_TEST1.json",
         {"parameter1": 947, "parameter2": "example-peer-2", "parameter3": True},
     ),
     (
         "build/tests/initParametersEmpty.json",
-        "results/03EXP_initParametersEmpty/peer_0_TEST1.json",
+        "Results/03EXP_initParametersEmpty/peer_0_TEST1.json",
         {"changePeerType": False},
     ),
 ]

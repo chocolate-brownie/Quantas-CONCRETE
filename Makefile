@@ -458,9 +458,10 @@ build/tests/mq_transport_metrics_test.exe: quantas/Tests/boostMqTransportMetrics
 
 build/tests/mq_report_test.exe: quantas/Tests/boostMqReportWriterTest.cpp \
 		quantas/Common/Concrete/Backends/BoostMq/Logging/BoostMqReportWriter.cpp \
+		quantas/Common/Concrete/Backends/BoostMq/Logging/BoostMqOutputPaths.hpp \
 		quantas/Common/LoggingSupport.cpp quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)
-	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
+	@$(CXX) $(CXXFLAGS) $(filter %.cpp,$^) -o $@ $(MQ_LDLIBS)
 
 build/tests/mq_invalid_output_peer.exe: quantas/Tests/boostMqInvalidOutputPeer.cpp \
 		quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.cpp \
@@ -541,9 +542,9 @@ mq_cleanup:
 
 clean_outputs:
 	@find . -maxdepth 1 -type f -name '*_EXP*' -delete
-	@if test -d results; then \
-		find results -mindepth 1 -maxdepth 1 -type d -name '*_EXP[0-9]*' -exec rm -rf -- {} +; \
-		rmdir results 2>/dev/null || true; \
+	@if test -d Results; then \
+		find Results -mindepth 1 -maxdepth 1 -type d \( -name '[0-9][0-9]*EXP_*' -o -name '*_EXP[0-9]*' \) -exec rm -rf -- {} +; \
+		rmdir Results 2>/dev/null || true; \
 	fi
 
 ############################### PHONY ###############################

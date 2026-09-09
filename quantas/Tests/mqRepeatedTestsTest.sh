@@ -4,7 +4,7 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 input_file=quantas/Tests/BoostMqRepeatedTestsInput.json
-result_dir=results/01EXP_mqRepeatedTests
+result_dir=Results/01EXP_mqRepeatedTests
 report=$result_dir/leader_report.json
 
 cleanup() {

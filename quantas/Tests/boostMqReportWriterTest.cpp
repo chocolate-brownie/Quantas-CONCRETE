@@ -175,20 +175,20 @@ int main() {
 
     const std::string leaderPath =
         quantas::BoostMqReportWriter::makeLeaderReportPath("AltBitdropProb0.txt", 0);
-    assert(leaderPath == "results/01EXP_AltBitdropProb0/leader_report.json");
+    assert(leaderPath == "Results/01EXP_AltBitdropProb0/leader_report.json");
     const nlohmann::json peerPaths =
         quantas::BoostMqReportWriter::makePeerOutputFiles("AltBitdropProb0.txt", 0, 2, 2);
-    assert(peerPaths.at("0") == "results/01EXP_AltBitdropProb0/peer_0_TEST2.txt");
-    assert(peerPaths.at("1") == "results/01EXP_AltBitdropProb0/peer_1_TEST2.txt");
+    assert(peerPaths.at("0") == "Results/01EXP_AltBitdropProb0/peer_0_TEST2.txt");
+    assert(peerPaths.at("1") == "Results/01EXP_AltBitdropProb0/peer_1_TEST2.txt");
 
     assert(quantas::BoostMqReportWriter::makeLeaderReportPath("AltBitdropProb0.txt", 8) ==
-           "results/09EXP_AltBitdropProb0/leader_report.json");
+           "Results/09EXP_AltBitdropProb0/leader_report.json");
     assert(quantas::BoostMqReportWriter::makeLeaderReportPath("AltBitdropProb0.txt", 9) ==
-           "results/10EXP_AltBitdropProb0/leader_report.json");
+           "Results/10EXP_AltBitdropProb0/leader_report.json");
 
     fs::remove_all(testDirectory);
-    fs::remove_all("results/01EXP_AltBitdropProb0");
-    fs::remove_all("results/09EXP_AltBitdropProb0");
-    fs::remove_all("results/10EXP_AltBitdropProb0");
+    fs::remove_all("Results/01EXP_AltBitdropProb0");
+    fs::remove_all("Results/09EXP_AltBitdropProb0");
+    fs::remove_all("Results/10EXP_AltBitdropProb0");
     return 0;
 }

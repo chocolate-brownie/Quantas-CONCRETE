@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Summarize BoostMQ transport counters from saved leader reports.
 #
-# The script finds leader_report.json files below results/, optionally filters
+# The script finds leader_report.json files below Results/, optionally filters
 # them with --contains, and sums their per-test transport values.  It reports
 # sent messages, messages removed from data queues, messages delivered to the
 # algorithm input stream, pending messages, and backpressure drops.  The final
@@ -20,8 +20,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "--results-dir",
     type=Path,
-    default=repo_root / "results",
-    help="Directory containing BoostMQ result folders (default: repository results/).",
+    default=repo_root / "Results",
+    help="Directory containing BoostMQ result folders (default: repository Results/).",
 )
 parser.add_argument(
     "--contains",
