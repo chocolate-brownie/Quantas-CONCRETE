@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Summarize BoostMQ transport counters from saved leader reports.
 #
 # The script finds leader_report.json files below Results/, optionally filters

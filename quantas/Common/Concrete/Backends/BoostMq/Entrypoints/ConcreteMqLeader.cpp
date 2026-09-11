@@ -159,13 +159,14 @@ int main(int argc, char* argv[]) {
              * queues using the requested capacities and maximum message size aka the preflight
              * check */
             auto boostConfig = quantas::parseBoostMqConfig(experiment, exp.initialPeers);
-            quantas::preflightBoostMqQueues(boostConfig, expIndex);
 
             /* Build the selected topology. The result contains one assignment per peer with its
              * ID, topology type, and neighbour IDs and then check that every serialized topology
              * assignment fits inside a control queue message before any worker process starts */
             auto topology = quantas::buildTopology(exp.topology);
             quantas::validateBoostMqAssignmentPayloads(topology.assignments, boostConfig, expIndex);
+
+            quantas::preflightBoostMqQueues(boostConfig, expIndex);
 
             /* If preflight-only mode is enabled, skip execution after validation and continue with
              * the next configured experiment. */

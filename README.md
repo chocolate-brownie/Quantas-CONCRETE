@@ -48,6 +48,11 @@ ConcreteMQ is an experimental multi-process backend that uses Boost message queu
 
 See the [BoostMQ backend guide](quantas/Common/Concrete/Backends/BoostMq/README.md) for build commands, usage, output metrics, and crash recovery before using it for experiments.
 
+For CPA baseline measurements using Lorenzo's original Abstract repository, see
+the [Abstract CPA run and CSV guide](docs/cpa-abstract-baseline.md).
+To collect matching BoostMQ data from that saved baseline, see the
+[BoostMQ baseline and comparison guide](docs/cpa-boostmq-baseline.md).
+
 ## Simulation Input Reference
 
 A simulation is described by a JSON document with two top-level keys:
