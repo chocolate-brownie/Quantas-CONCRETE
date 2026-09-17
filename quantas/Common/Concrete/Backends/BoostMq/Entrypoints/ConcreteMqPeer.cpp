@@ -12,6 +12,7 @@
 #include "quantas/Common/memoryUtil.hpp"
 #include <algorithm>
 #include <chrono>
+#include <ctime>
 #include <iostream>
 #include <optional>
 #include <stdexcept>
@@ -164,7 +165,39 @@ void cleanUp(std::vector<quantas::Peer*>& localPeers) {
     localPeers.clear();
 }
 
-/* ========================= Rounds Execution Start ========================= */
+void runForDuration(std::vector<quantas::Peer*>& localPeers, std::chrono::milliseconds duration,
+                    quantas::ProcessCoordinatorMQ& coordinator) {
+
+    constexpr auto pollInterval = std::chrono::milliseconds(10);
+
+    if (localPeers.size() != 1 || localPeers.front() == nullptr)
+        throw std::invalid_argument("Expected exactly one local peer");
+
+    if (duration.count() <= 0)
+        throw std::invalid_argument("Execution duration must be positive");
+
+    quantas::Peer& peer = *localPeers.front();
+
+    quantas::RoundManager::synchronous();
+    quantas::RoundManager::setCurrentRound(0);
+    quantas::RoundManager::setLastRound(0);
+
+    const auto deadline = std::chrono::steady_clock::now() + duration;
+
+    while (!coordinator.shouldStop() && std::chrono::steady_clock::now() < deadline) {
+        const auto nextCheck = std::chrono::steady_clock::now() + pollInterval;
+
+        quantas::RoundManager::incrementRound();
+
+        peer.receive();
+        peer.tryPerformComputation();
+
+        std::this_thread::sleep_until(std::min(nextCheck, deadline));
+    }
+
+    peer.endOfExperiment(localPeers);
+}
+
 void runRounds(std::vector<quantas::Peer*>& localPeers, int rounds,
                quantas::ProcessCoordinatorMQ& coordinator) {
     size_t loopCount = 0;
@@ -220,7 +253,6 @@ void runRounds(std::vector<quantas::Peer*>& localPeers, int rounds,
             << " reason=" << stopReason;
     }
 }
-/* ========================= Rounds Execution Ends ========================= */
 
 // Try to build peers from topology rules
 bool prepareLocalPeers(const quantas::RuntimeExperimentConfig& exp,
@@ -389,7 +421,7 @@ int main(int argc, char** argv) {
             try {
                 /* Let this peer receive messages and perform its algorithm work for the configured
                  * number of local rounds. */
-                runRounds(localPeers, exp.rounds, coordinator);
+                runForDuration(localPeers, std::chrono::seconds(2), coordinator);
             } catch (...) {
                 /* If execution fails, save the metrics collected so far and pass the error to the
                  * main failure handler below. */

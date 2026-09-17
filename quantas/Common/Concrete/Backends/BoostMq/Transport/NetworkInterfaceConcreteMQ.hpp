@@ -41,6 +41,8 @@ class NetworkInterfaceConcreteMQ : public NetworkInterface {
     TransportMetrics transportMetrics() const;
 
     void resetTransportMetrics();
+
+    std::size_t getPendingMessageCount() const;
 };
 } // namespace quantas
 

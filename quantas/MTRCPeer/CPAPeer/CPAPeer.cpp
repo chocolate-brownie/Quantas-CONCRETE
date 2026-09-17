@@ -20,9 +20,14 @@ QUANTAS. If not, see <https://www.gnu.org/licenses/>.
 namespace quantas {
 
 nlohmann::json CPAPeer::collectAlgoMetrics() const {
-    return {{"peer_id", publicId()},           {"is_byzantine", isByzantine},
-            {"delivered", delivered},          {"delivered_value", mDelivered},
-            {"delivery_round", deliveryRound}, {"messages_sent", msgsSent}};
+    return {{"peer_id", publicId()},
+            {"is_byzantine", isByzantine},
+            {"delivered", delivered},
+            {"delivered_value", mDelivered},
+            {"delivery_round", deliveryRound},
+            {"messages_sent", msgsSent},
+            {"empty_local_stream", emptyStream},
+            {"initial_action_completed", initialActionCompleted}};
 }
 
 int count(const std::unordered_map<interfaceId, int>& receivedMessages, int m) {
@@ -96,6 +101,12 @@ void CPAPeer::endOfRound(std::vector<Peer*>& peers) {
     }
 }
 
+void CPAPeer::endOfTime(std::vector<Peer*>& peers) {
+    json results = saveResults(peers);
+    LogWriter::pushValue("results", results);
+    cout << "[CPA] finished saving results for test" << endl;
+}
+
 NetworkInterface* CPAPeer::releaseNetworkInterface() {
     NetworkInterface* iface = _networkInterface;
     _networkInterface = nullptr;
@@ -105,6 +116,7 @@ NetworkInterface* CPAPeer::releaseNetworkInterface() {
 void CPAPeer::checkInStrm() {
     while (!inStreamEmpty()) {
         Packet packet = popInStream();
+
         interfaceId srcId = packet.sourceId();
         json msg = packet.getMessage();
 
@@ -137,6 +149,8 @@ void CPAPeer::checkInStrm() {
             // deliveryRound << endl;
         }
     }
+
+    emptyStream = inStreamEmpty();
 }
 
 json CPAPeer::buildMsg(int m) const {
@@ -168,8 +182,10 @@ void CPAPeer::correctBehavior() {
         delivered = true;
         deliveryRound = RoundManager::currentRound();
         mDelivered = 0;
-        // cout << "Sender " << publicId() << " delivered message 0 in round " << deliveryRound <<
-        // endl;
+        initialActionCompleted = true;
+
+        /* cout << "Sender " << publicId() << " delivered message 0 in round " << deliveryRound
+             << endl; */
     }
 
     // check messages in inStream and propagate if valid
@@ -183,6 +199,7 @@ void CPAPeer::byzantineBehavior() {
     if (RoundManager::currentRound() == 1) {
         propagateMsg(1, {}); // fake message with m=1 instead of m=0
         // cout << "Byzantine peer " << publicId() << " sent message 1" << endl;
+        initialActionCompleted = true;
     }
 }
 

@@ -220,12 +220,13 @@ bool BoostMqReportWriter::readPeerMetrics(const nlohmann::json& peerOutputFiles,
 /* Select the algorithm's calculation rules. Keep the report writable when a summary is
  * unsupported, the test is incomplete, or a peer's algorithm metrics are invalid. */
 nlohmann::json BoostMqReportWriter::makeAlgorithmSummary(const std::string& peerType,
-                                                        const TestReportInfo& info) {
+                                                         const TestReportInfo& info) {
     if (!info.success)
         return {{"available", false}, {"reason", "Test failed or is incomplete"}};
 
     if (peerType != "CPAPeer")
-        return {{"available", false}, {"reason", "No algorithm summary implemented for " + peerType}};
+        return {{"available", false},
+                {"reason", "No algorithm summary implemented for " + peerType}};
 
     try {
         auto summary = summarizeAlgoReliability(info.peerMetrics);

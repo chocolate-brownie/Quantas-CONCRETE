@@ -153,6 +153,13 @@ void NetworkInterfaceConcreteMQ::clearAll() { NetworkInterface::clearAll(); }
 
 TransportMetrics NetworkInterfaceConcreteMQ::transportMetrics() const { return _transportMetrics; }
 
+std::size_t NetworkInterfaceConcreteMQ::getPendingMessageCount() const {
+    if (!_myInbox.has_value())
+        return 0;
+
+    return _myInbox->get_num_msg();
+}
+
 void NetworkInterfaceConcreteMQ::resetTransportMetrics() { _transportMetrics = {}; }
 
 } // namespace quantas

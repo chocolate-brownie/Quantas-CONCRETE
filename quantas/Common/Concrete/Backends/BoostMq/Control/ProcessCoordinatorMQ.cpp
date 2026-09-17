@@ -1,4 +1,7 @@
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.hpp"
+#include "BoostMq/Transport/NetworkInterfaceConcreteMQ.hpp"
+#include "Peer.hpp"
+#include "Runtime/Metrics/TransportMetrics.hpp"
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/Logger.hpp"
@@ -15,6 +18,7 @@
 #include <boost/interprocess/streams/bufferstream.hpp>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <mutex>
 #include <stdexcept>
@@ -518,21 +522,14 @@ void ProcessCoordinatorMQ::cleanUp() {
     }
 }
 
-/*
- * Utility: Report whether this process has been asked to stop its current
- * work.
- */
+/* Utility: Report whether this process has been asked to stop its current work. */
 bool ProcessCoordinatorMQ::shouldStop() const { return _stopSignal.load(); }
 
-/*
- * Utility: Return the stop policy selected for the current experiment.
- */
+/* Utility: Return the stop policy selected for the current experiment. */
 StopMode ProcessCoordinatorMQ::stopMode() const { return _stopMode; }
 
-/*
- * Major operation: Mark this process as stopping. The atomic exchange makes
- * repeated requests harmless, and the optional reason is written to the log.
- */
+/* Major operation: Mark this process as stopping. The atomic exchange makes repeated requests
+ * harmless, and the optional reason is written to the log. */
 void ProcessCoordinatorMQ::requestStop(const std::string& reason) {
     const bool alreadyStopping = _stopSignal.exchange(true);
     if (alreadyStopping)
@@ -544,11 +541,9 @@ void ProcessCoordinatorMQ::requestStop(const std::string& reason) {
         QUANTAS_LOG_INFO("coord") << "peer " << _myId << " stop requested";
 }
 
-/*
- * Major operation: Handle peer completion on either side of the protocol. A
- * peer sends its ID to `mq_done`. The leader records unique completed IDs and
- * broadcasts the normal stop signal after every expected peer is complete.
- */
+/* Major operation: Handle peer completion on either side of the protocol. A peer sends its ID to
+ * `mq_done`. The leader records unique completed IDs and broadcasts the normal stop signal after
+ * every expected peer is complete. */
 void ProcessCoordinatorMQ::notifyPeerFinished(interfaceId id, bool succeeded) {
     if (id == NO_PEER_ID)
         return;
@@ -599,11 +594,9 @@ void ProcessCoordinatorMQ::notifyPeerStopped(interfaceId id) { notifyPeerFinishe
 
 void ProcessCoordinatorMQ::notifyPeerFailed(interfaceId id) { notifyPeerFinished(id, false); }
 
-/*
- * Major operation: Wait until every expected peer reports done or one reports
- * failure. Invalid and duplicate IDs are ignored. The returned value lists the
- * completed and failed peers and says whether the wait timed out.
- */
+/* Major operation: Wait until every expected peer reports done or one reports failure. Invalid and
+ * duplicate IDs are ignored. The returned value lists the completed and failed peers and says
+ * whether the wait timed out. */
 PeerCompletionResult ProcessCoordinatorMQ::waitForAllDone(std::chrono::milliseconds timeout) {
     PeerCompletionResult result;
 
@@ -671,10 +664,33 @@ PeerCompletionResult ProcessCoordinatorMQ::waitForAllDone(std::chrono::milliseco
     return result;
 }
 
-/*
- * Utility: Destroy this process's coordinator object. Queue removal is handled
- * explicitly by `cleanUp()`, so the destructor has no extra work.
- */
+void ProcessCoordinatorMQ::checkCompletionRqstStop(const quantas::Peer& peer) {
+    /*- TODO: `all_correct_delivered`: every correct peer performed brb and finished its required
+     * forwarding. This establishes 100% delivery; agreement is checked separately. */
+    const auto algoMetrics = peer.collectAlgoMetrics();
+    const bool brbDelivery = algoMetrics.at("delivered").get<bool>();
+    /*  TODO: `quiescent`: all initial actions have happened, no protocol work remains, and no
+     * queued or in-transit messages can generate further work. This allows a finished experiment to
+     * report partial delivery.*/
+    const bool initActionCompleted = algoMetrics.at("initial_action_completed").get<bool>();
+    const bool emptyStream = algoMetrics.at("empty_local_stream").get<bool>();
+
+    const auto* mq =
+        dynamic_cast<const quantas::NetworkInterfaceConcreteMQ*>(peer.getNetworkInterface());
+    if (mq == nullptr)
+        return;
+
+    const std::size_t pendingMsgCount = mq->getPendingMessageCount();
+
+    const quantas::TransportMetrics transport = mq->transportMetrics();
+
+    const uint64_t sent = transport.sent;
+    const uint64_t receivedRaw = transport.receivedRaw;
+    const uint64_t deliveredToInstream = transport.deliveredToInstream;
+}
+
+/* Utility: Destroy this process's coordinator object. Queue removal is handled explicitly by
+ * cleanUp(), so the destructor has no extra work. */
 ProcessCoordinatorMQ::~ProcessCoordinatorMQ() {}
 
 } // namespace quantas

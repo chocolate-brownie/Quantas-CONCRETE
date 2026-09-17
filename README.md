@@ -171,6 +171,99 @@ Attach faults from your algorithm’s `initParameters`. For instance, `PBFTPeer`
 
 `LogWriter` aggregates per-test metrics into structured JSON records. Algorithms push values during execution (for example PBFT tracks throughput, latency, and faulty confirmations). Each experiment writes its metrics at the end of the run, either to stdout (`logFile = "cout"`) or to the named log file.
 
+## CPA Abstract and Concrete comparison
+
+Run the Python runner from this repository. It uses Python's standard library,
+`make`, `g++`, and the existing backend build dependencies. Abstract uses the
+Lorenzo checkout at `quantas_mtrc-main/Quantas` (override with `--abstract-root`);
+Concrete uses this repository's BoostMQ backend on Linux.
+
+Validate one experiment on each backend first:
+
+```bash
+python3 run_exp.py --backend abstract --t 1 --limit-experiments 1
+python3 run_exp.py --backend concrete --t 1 --limit-experiments 1
+```
+
+Then run all edge-remover inputs for 100 peers, k=7 and Byzantine counts 1–13:
+
+```bash
+python3 run_exp.py --backend abstract
+python3 run_exp.py --backend concrete
+```
+
+Run these commands sequentially. Each full backend batch contains 100 experiments
+per input, with ten repetitions per experiment: 13,000 repetitions per backend.
+The runner preserves the input's rounds (1,000), repetitions, thread count,
+parameters, distribution and topology. `--t 1` selects the entire t1 file;
+`--limit-experiments 1` restricts execution to one unfinished experiment.
+Other selections use `--family edge_remover|erdos_renyi|random_regular`, `--n`,
+and `--k 3|5|7`. Without `--t`, the range is 1 through 2k−1.
+
+Results default to `Results/cpa_edge_remover_n100_k7/` (override with
+`--output-dir`). Open `abstract.csv` and `concrete.csv` directly in Excel. Each
+row identifies the input, original experiment index, repetition, backend,
+Byzantine IDs/count, sender, threshold pair, network group/ID and topology hash.
+Indices are zero-based. The five metric columns retain the existing formulas:
+
+| Column | Meaning |
+| --- | --- |
+| `avgTermination` | Percentage of non-Byzantine peers that delivered |
+| `avgSafety` | Largest agreeing group among non-Byzantine delivered peers, as a percentage of those delivered peers |
+| `avgDeliveryRound` | Average delivery round across all delivered peers, including Byzantine peers |
+| `avgMessagesSent` | Total messages sent by all peers divided by the number of non-Byzantine peers |
+| `totalMessagesSent` | Total messages sent by all peers |
+
+Safety measures agreement, which does not necessarily mean delivery of the
+sender's value. Abstract rounds are simulation steps; Concrete rounds are local
+peer iterations. Equal round limits do not imply equal elapsed time or progress.
+Abstract applies its configured delay distribution; Concrete uses actual queue
+delivery and scheduling. Keep `(ts, tl)` and network groups (`dolev`, `both`)
+separate when aggregating. Both groups run CPA in this campaign.
+
+The backend directories preserve original/effective inputs, build logs and
+binaries, console logs, raw reports (including Concrete transport metrics), and
+attempt records. `manifest.json` records input hashes and backend source/compiler
+identities. Each CSV row links to its raw report; paths inside Concrete's report
+are relative to that attempt's working directory.
+
+Results are checkpointed after each experiment. Rerun the same command to skip
+completed experiments and retry an incomplete experiment in a new attempt
+directory. Its latest rows replace the previous attempt's rows in the CSV; older
+attempts remain on disk. Missing or invalid metrics are blank, never zero.
+Valid partial results are retained even on process failure, with a failure reason;
+the experiment is not marked complete. A failure stops the batch. Ctrl+C, SIGTERM
+and SIGHUP stop launched processes; completed experiments remain saved. Changed
+inputs or backend sources/compiler require a new output directory to avoid mixing
+runs. Do not run other Concrete jobs concurrently; existing shared queues cause
+the runner to stop before launching a job.
+
+This runner collects raw per-repetition data. It does not calculate plot averages
+or create charts or `.xlsx` files. Run its focused tests with:
+
+```bash
+python3 -m unittest discover -s quantas/Tests -p test_run_exp.py -v
+```
+
+To create the delivery-percentage figure, install matplotlib in an isolated
+environment (once), then run the plotting script:
+
+```bash
+python3 -m venv Results/.plot-venv
+Results/.plot-venv/bin/python -m pip install matplotlib
+Results/.plot-venv/bin/python plot_delivery.py Results/cpa_edge_remover_n100_k7/abstract.csv
+```
+
+`plot_delivery.py` saves `delivery_percentage.jpg` at 300 DPI and a matching PDF
+beside the CSV. Use `--output-dir` to choose another destination. It averages
+repetitions within each network, then weights the network means equally. Panels
+show threshold pairs, lines distinguish the two network groups, and shading
+shows the minimum–maximum range of network means (not a confidence interval).
+Unsuccessful or flagged rows are excluded; legitimate zero delivery is retained.
+Running the command again replaces the two figure files. When plotting Concrete
+data from the same folder, supply a separate `--output-dir` to preserve the
+Abstract figure.
+
 ## Platform Notes
 
 ### macOS

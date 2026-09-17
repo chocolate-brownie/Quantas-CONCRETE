@@ -20,11 +20,11 @@ along with QUANTAS. If not, see <https://www.gnu.org/licenses/>.
 #define PEER_HPP
 
 #include "Abstract/NetworkInterfaceAbstract.hpp" // IWYU pragma: keep
+#include "Json.hpp"
 #include "LogWriter.hpp"
 #include "NetworkInterface.hpp"
 #include "RoundManager.hpp"
 #include "quantas/Common/Concrete/Backends/TCP/NetworkInterfaceConcrete.hpp" // IWYU pragma: keep
-#include "Json.hpp"
 #include <functional>
 #include <iostream>
 #include <stdexcept>

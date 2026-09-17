@@ -1,6 +1,7 @@
 #ifndef PROCESS_COORDINATOR_MQ_HPP
 #define PROCESS_COORDINATOR_MQ_HPP
 
+#include "Peer.hpp"
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/NetworkInterface.hpp" // IWYU pragma: keep
@@ -93,6 +94,7 @@ class ProcessCoordinatorMQ {
     Placeholder for J9/J12 termination semantics (currently minimal behavior) */
     bool shouldStop() const;
     StopMode stopMode() const;
+    void checkCompletionRqstStop(const quantas::Peer& peer);
     void requestStop(const std::string& reason = "");
     void broadcastStop();
     void broadcastStopBestEffort();

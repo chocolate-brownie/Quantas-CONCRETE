@@ -22,80 +22,8 @@
                 "maxMessageSizeBytes": 4096,
                 "readyTimeoutMs": 1000
             },
-            "tests": 10,
-            "rounds": 100
-        },
-        {
-            "logFile": "AltBitdropProb10.txt",
-            "threadCount": 1,
-            "distribution": {
-                "type": "uniform",
-                "maxDelay": 1,
-                "dropProbability": 0.1
-            },
-            "topology": {
-                "type": "complete",
-                "initialPeers": 2,
-                "initialPeerType": "AltBitPeer"
-            },
-            "parameters": {
-                "timeOutRate": 2
-            },
-            "boostMq": {
-                "dataQueueCapacity": 1000,
-                "maxMessageSizeBytes": 4096,
-                "readyTimeoutMs": 30000
-            },
-            "tests": 10,
-            "rounds": 100
-        },
-        {
-            "logFile": "AltBitdropProb25.txt",
-            "threadCount": 1,
-            "distribution": {
-                "type": "uniform",
-                "maxDelay": 1,
-                "dropProbability": 0.25
-            },
-            "topology": {
-                "type": "complete",
-                "initialPeers": 2,
-                "initialPeerType": "AltBitPeer"
-            },
-            "parameters": {
-                "timeOutRate": 2
-            },
-            "boostMq": {
-                "dataQueueCapacity": 1000,
-                "maxMessageSizeBytes": 4096,
-                "readyTimeoutMs": 30000
-            },
-            "tests": 10,
-            "rounds": 100
-        },
-        {
-            "logFile": "AltBitdropProb50.txt",
-            "threadCount": 1,
-            "distribution": {
-                "type": "uniform",
-                "maxDelay": 1,
-                "dropProbability": 0.5
-            },
-            "topology": {
-                "type": "complete",
-                "initialPeers": 2,
-                "initialPeerType": "AltBitPeer"
-            },
-            "parameters": {
-                "timeOutRate": 2
-            },
-            "boostMq": {
-                "dataQueueCapacity": 1000,
-                "maxMessageSizeBytes": 4096,
-                "readyTimeoutMs": 30000
-            },
-            "tests": 10,
-            "rounds": 100
+            "tests": 1,
+            "rounds": 1
         }
     ]
 }

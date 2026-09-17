@@ -34,6 +34,7 @@ class CPAPeer : public Peer {
     void initParameters(const std::vector<Peer*>& peers, json parameters) override;
     void performComputation() override;
     void endOfRound(std::vector<Peer*>& peers) override;
+    void endOfTime(std::vector<Peer*>& peers) override;
     nlohmann::json collectAlgoMetrics() const override;
 
     NetworkInterface* releaseNetworkInterface();
@@ -48,6 +49,9 @@ class CPAPeer : public Peer {
     bool delivered = false; // whether this peer has delivered the message or not
     int deliveryRound = -1; // round in which this peer delivered the message
     int mDelivered = -1;    // the message that this peer delivered
+
+    bool initialActionCompleted = false; // has cpa performed its initial action?
+    bool emptyStream = false;            // does the peer have unprocessed local messages?
 
     unordered_map<interfaceId, int> receivedMessages;
 
