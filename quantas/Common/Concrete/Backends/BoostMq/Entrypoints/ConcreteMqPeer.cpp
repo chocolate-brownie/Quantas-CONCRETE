@@ -184,16 +184,18 @@ void runForDuration(std::vector<quantas::Peer*>& localPeers, std::chrono::millis
 
     const auto deadline = std::chrono::steady_clock::now() + duration;
 
-    while (!coordinator.shouldStop() && std::chrono::steady_clock::now() < deadline) {
+    while (std::chrono::steady_clock::now() < deadline && !peer.localProtocolCompleted() &&
+           !coordinator.pollForStop()) {
         const auto nextCheck = std::chrono::steady_clock::now() + pollInterval;
-
         quantas::RoundManager::incrementRound();
-
         peer.receive();
         peer.tryPerformComputation();
-
-        std::this_thread::sleep_until(std::min(nextCheck, deadline));
+        if (!peer.localProtocolCompleted())
+            std::this_thread::sleep_until(std::min(nextCheck, deadline));
     }
+
+    if (peer.localProtocolCompleted())
+        coordinator.notifyBrbDelivered(peer.publicId());
 
     peer.endOfExperiment(localPeers);
 }

@@ -101,12 +101,6 @@ void CPAPeer::endOfRound(std::vector<Peer*>& peers) {
     }
 }
 
-void CPAPeer::endOfTime(std::vector<Peer*>& peers) {
-    json results = saveResults(peers);
-    LogWriter::pushValue("results", results);
-    cout << "[CPA] finished saving results for test" << endl;
-}
-
 NetworkInterface* CPAPeer::releaseNetworkInterface() {
     NetworkInterface* iface = _networkInterface;
     _networkInterface = nullptr;
@@ -202,5 +196,7 @@ void CPAPeer::byzantineBehavior() {
         initialActionCompleted = true;
     }
 }
+
+bool CPAPeer::localProtocolCompleted() const { return delivered; }
 
 } // namespace quantas

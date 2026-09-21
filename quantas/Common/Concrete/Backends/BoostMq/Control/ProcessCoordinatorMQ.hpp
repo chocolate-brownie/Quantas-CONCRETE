@@ -1,7 +1,7 @@
 #ifndef PROCESS_COORDINATOR_MQ_HPP
 #define PROCESS_COORDINATOR_MQ_HPP
 
-#include "Peer.hpp"
+#include "quantas/Common/Peer.hpp"
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/NetworkInterface.hpp" // IWYU pragma: keep
@@ -9,21 +9,24 @@
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
 
 namespace quantas {
 enum class StopMode { FixedRounds, DoneSignals };
+enum class PeerCompletionEvent : uint8_t { BrbDelivered, ProcessDone, ProcessFailed };
 
 struct PeerCompletionMessage {
     interfaceId peerId{NO_PEER_ID};
-    bool succeeded{true};
+    PeerCompletionEvent event{PeerCompletionEvent::ProcessDone};
 };
 
 struct PeerCompletionResult {
     std::vector<interfaceId> completedPeers;
     std::vector<interfaceId> failedPeers;
+    std::optional<double> brbCompletionTimeMs;
     bool timedOut{false};
 };
 
@@ -59,7 +62,7 @@ class ProcessCoordinatorMQ {
     ~ProcessCoordinatorMQ();
     ProcessCoordinatorMQ(const ProcessCoordinatorMQ&) = delete;
     ProcessCoordinatorMQ& operator=(const ProcessCoordinatorMQ&) = delete;
-    void notifyPeerFinished(interfaceId id, bool succeeded);
+    void notifyPeerEvent(interfaceId id, PeerCompletionEvent event);
 
   public:
     // -------------------- Singleton access --------------------
@@ -94,14 +97,18 @@ class ProcessCoordinatorMQ {
     Placeholder for J9/J12 termination semantics (currently minimal behavior) */
     bool shouldStop() const;
     StopMode stopMode() const;
-    void checkCompletionRqstStop(const quantas::Peer& peer);
+    bool pollForStop();
     void requestStop(const std::string& reason = "");
     void broadcastStop();
     void broadcastStopBestEffort();
     void waitForStop();
+    void notifyBrbDelivered(interfaceId id);
     void notifyPeerStopped(interfaceId id);
     void notifyPeerFailed(interfaceId id);
-    PeerCompletionResult waitForAllDone(std::chrono::milliseconds timeout);
+    PeerCompletionResult waitForAllDone(
+        std::chrono::milliseconds timeout,
+        const std::vector<interfaceId>& correctPeerIds = {},
+        std::optional<std::chrono::steady_clock::time_point> protocolStartTime = std::nullopt);
 };
 
 } // namespace quantas

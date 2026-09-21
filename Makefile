@@ -76,7 +76,8 @@ MQ_LEADER_SRCS := $(COMMON_SRCS) \
 	quantas/Common/Concrete/Runtime/Config/RuntimeConfig.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.cpp \
 	quantas/Common/Concrete/Runtime/Topology/TopologyPlanner.cpp \
-	quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.cpp
+	quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.cpp \
+	quantas/Common/Abstract/Channel.cpp
 
 # Only commands that build or run algorithm code need to read INPUTFILE.
 INPUT_FREE_GOALS := help clean clean_outputs mq_status mq_cleanup check-version check-clang \
@@ -429,7 +430,7 @@ build/tests/rand_test.exe: quantas/Tests/randtest.cpp
 build/tests/mq_timeout_test.exe: quantas/Tests/processCoordinatorMQTimeoutTest.cpp \
 		quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.cpp quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)
-	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
+	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS) -Wl,--wrap=shm_unlink
 
 build/tests/mq_ready_identity_test.exe: quantas/Tests/processCoordinatorMQReadyIdentityTest.cpp \
 		quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.cpp quantas/Common/Logger.cpp | check_mq_deps

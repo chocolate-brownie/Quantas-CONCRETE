@@ -99,6 +99,7 @@ class Peer {
 
     // Return this peer's algorithm metrics, or an empty object if not implemented.
     virtual nlohmann::json collectAlgoMetrics() const { return nlohmann::json::object(); }
+    virtual bool localProtocolCompleted() const { return false; }
 
     /* Called once after constructing all peers (subclass can parse 'parameters'
      * as needed) */

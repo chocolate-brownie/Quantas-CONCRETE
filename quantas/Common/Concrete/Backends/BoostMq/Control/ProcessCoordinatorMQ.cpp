@@ -1,7 +1,4 @@
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.hpp"
-#include "BoostMq/Transport/NetworkInterfaceConcreteMQ.hpp"
-#include "Peer.hpp"
-#include "Runtime/Metrics/TransportMetrics.hpp"
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/Logger.hpp"
@@ -20,7 +17,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -44,8 +40,6 @@ constexpr unsigned int kStopTrigger = 3;
 constexpr unsigned int kDoneTrigger = 4;
 constexpr int kControlSendAttempts = 200;
 constexpr int kControlSendWaitMs = 10;
-std::mutex gCompletedMutex;
-std::unordered_set<interfaceId> gCompletedPeers;
 
 /* Utility: Build the exact BoostMQ queue name used for one peer's control messages, such as
  * assignment, start, and stop. */
@@ -113,10 +107,6 @@ void ProcessCoordinatorMQ::configureExperiment(size_t experimentIndex, const std
     _logFileBase = logFileBase;
     _stopMode = stopMode;
     _stopSignal = false;
-    {
-        std::scoped_lock lock(gCompletedMutex);
-        gCompletedPeers.clear();
-    }
     _myBarrier.reset();
     _myControlInbox.reset();
 }
@@ -474,7 +464,7 @@ void ProcessCoordinatorMQ::waitForStop() {
         unsigned int priority;
         message_queue::size_type recvd_size;
 
-        while (true) {
+        while (!_stopSignal.load()) {
             _myControlInbox->receive(buffer.data(), buffer.size(), recvd_size, priority);
             if (recvd_size != sizeof(unsigned int)) {
                 continue;
@@ -488,10 +478,10 @@ void ProcessCoordinatorMQ::waitForStop() {
 
             QUANTAS_LOG_INFO("coord") << "peer " << _myId << " received stop signal";
             _stopSignal = true;
-            waitForQueueRemoval(peerControlQueueName(_myId));
-            _myControlInbox.reset();
             break;
         }
+        waitForQueueRemoval(peerControlQueueName(_myId));
+        _myControlInbox.reset();
     } catch (const interprocess_exception& ex) {
         throw std::runtime_error("Failed to ::waitForStop for peer " + std::to_string(_myId) +
                                  ": " + ex.what());
@@ -509,21 +499,44 @@ void ProcessCoordinatorMQ::cleanUp() {
         message_queue::remove("mq_done");
         for (size_t i = 0; i < _totalPeers; ++i) {
             const auto peerId = static_cast<interfaceId>(i);
-            message_queue::remove(peerControlQueueName(peerId).c_str());
+            // Control-queue removal releases waitForStop(). Remove the data queue
+            // first so a released peer can safely create its next test's inboxes.
             message_queue::remove(peerDataQueueName(peerId).c_str());
+            message_queue::remove(peerControlQueueName(peerId).c_str());
         }
     } else { // a follower should only remove its own
         message_queue::remove(peerControlQueueName(_myId).c_str());
         message_queue::remove(peerDataQueueName(_myId).c_str());
     }
-    {
-        std::scoped_lock lock(gCompletedMutex);
-        gCompletedPeers.clear();
-    }
 }
 
 /* Utility: Report whether this process has been asked to stop its current work. */
 bool ProcessCoordinatorMQ::shouldStop() const { return _stopSignal.load(); }
+
+/* Utility: Check the peer's control queue without blocking so a STOP sent during protocol
+ * execution can interrupt the time-based loop. */
+bool ProcessCoordinatorMQ::pollForStop() {
+    if (_isLeader || _stopSignal.load())
+        return _stopSignal.load();
+    if (!_myControlInbox)
+        return false;
+
+    std::vector<char> buffer(_myControlInbox->get_max_msg_size());
+    unsigned int priority = 0;
+    message_queue::size_type receivedSize = 0;
+    if (!_myControlInbox->try_receive(buffer.data(), buffer.size(), receivedSize, priority))
+        return false;
+    if (receivedSize != sizeof(unsigned int))
+        return false;
+
+    unsigned int trigger = 0;
+    std::memcpy(&trigger, buffer.data(), sizeof(trigger));
+    if (trigger != kStopTrigger)
+        return false;
+
+    requestStop("leader established all-correct BRB delivery");
+    return true;
+}
 
 /* Utility: Return the stop policy selected for the current experiment. */
 StopMode ProcessCoordinatorMQ::stopMode() const { return _stopMode; }
@@ -541,69 +554,66 @@ void ProcessCoordinatorMQ::requestStop(const std::string& reason) {
         QUANTAS_LOG_INFO("coord") << "peer " << _myId << " stop requested";
 }
 
-/* Major operation: Handle peer completion on either side of the protocol. A peer sends its ID to
- * `mq_done`. The leader records unique completed IDs and broadcasts the normal stop signal after
- * every expected peer is complete. */
-void ProcessCoordinatorMQ::notifyPeerFinished(interfaceId id, bool succeeded) {
+/* Major operation: Send one peer lifecycle event to the leader-owned completion queue. */
+void ProcessCoordinatorMQ::notifyPeerEvent(interfaceId id, PeerCompletionEvent event) {
     if (id == NO_PEER_ID)
         return;
 
-    // Follower path: send this peer's completion status to the leader-owned queue.
-    if (!_isLeader) {
-        const PeerCompletionMessage completion{id, succeeded};
-        for (int attempt = 1; attempt <= kControlSendAttempts; ++attempt) {
-            try {
-                message_queue doneQueue(open_only, "mq_done");
-                if (timedSendControlMessage(doneQueue, &completion, sizeof(completion),
-                                            kControlSendWaitMs)) {
-                    QUANTAS_LOG_INFO("coord")
-                        << "peer " << _myId << " reported " << (succeeded ? "success" : "failure")
-                        << " for peer " << id;
+    if (_isLeader)
+        return;
 
-                    return;
-                }
-            } catch (const interprocess_exception& ex) {
-                if (attempt == kControlSendAttempts) {
-                    throw std::runtime_error("Failed to ::notifyPeerStopped for peer " +
-                                             std::to_string(_myId) + ": " + ex.what());
-                }
+    const PeerCompletionMessage completion{id, event};
+    for (int attempt = 1; attempt <= kControlSendAttempts; ++attempt) {
+        try {
+            message_queue doneQueue(open_only, "mq_done");
+            if (timedSendControlMessage(doneQueue, &completion, sizeof(completion),
+                                        kControlSendWaitMs)) {
+                QUANTAS_LOG_INFO("coord") << "peer " << _myId << " reported event "
+                                           << static_cast<int>(event) << " for peer " << id;
+                return;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(kControlSendWaitMs));
+        } catch (const interprocess_exception& ex) {
+            if (attempt == kControlSendAttempts)
+                throw std::runtime_error("Failed to send peer event for peer " +
+                                         std::to_string(_myId) + ": " + ex.what());
         }
-
-        throw std::runtime_error("Timed out sending completion status for peer " +
-                                 std::to_string(_myId) + " to mq_done");
+        std::this_thread::sleep_for(std::chrono::milliseconds(kControlSendWaitMs));
     }
 
-    // Leader path: count unique completed peers and broadcast stop once all are
-    // done.
-    bool shouldBroadcast = false;
-    {
-        std::scoped_lock lock(gCompletedMutex);
-        gCompletedPeers.insert(id);
-        shouldBroadcast = gCompletedPeers.size() >= _totalPeers;
-    }
-
-    QUANTAS_LOG_INFO("coord") << "leader recorded done from peer " << id;
-
-    if (shouldBroadcast)
-        broadcastStop();
+    throw std::runtime_error("Timed out sending peer event for peer " + std::to_string(_myId) +
+                             " to mq_done");
 }
 
-void ProcessCoordinatorMQ::notifyPeerStopped(interfaceId id) { notifyPeerFinished(id, true); }
+void ProcessCoordinatorMQ::notifyBrbDelivered(interfaceId id) {
+    notifyPeerEvent(id, PeerCompletionEvent::BrbDelivered);
+}
 
-void ProcessCoordinatorMQ::notifyPeerFailed(interfaceId id) { notifyPeerFinished(id, false); }
+void ProcessCoordinatorMQ::notifyPeerStopped(interfaceId id) {
+    notifyPeerEvent(id, PeerCompletionEvent::ProcessDone);
+}
+
+void ProcessCoordinatorMQ::notifyPeerFailed(interfaceId id) {
+    notifyPeerEvent(id, PeerCompletionEvent::ProcessFailed);
+}
 
 /* Major operation: Wait until every expected peer reports done or one reports failure. Invalid and
  * duplicate IDs are ignored. The returned value lists the completed and failed peers and says
  * whether the wait timed out. */
-PeerCompletionResult ProcessCoordinatorMQ::waitForAllDone(std::chrono::milliseconds timeout) {
+PeerCompletionResult ProcessCoordinatorMQ::waitForAllDone(
+    std::chrono::milliseconds timeout, const std::vector<interfaceId>& correctPeerIds,
+    std::optional<std::chrono::steady_clock::time_point> protocolStartTime) {
     PeerCompletionResult result;
 
     if (!_isLeader)
         return result;
 
     std::unordered_set<interfaceId> seenPeers;
+    std::unordered_set<interfaceId> correctPeers(correctPeerIds.begin(), correctPeerIds.end());
+    std::unordered_set<interfaceId> deliveredCorrectPeers;
+    if (protocolStartTime.has_value() && correctPeers.empty()) {
+        result.brbCompletionTimeMs = 0.0;
+        broadcastStop();
+    }
 
     QUANTAS_LOG_INFO("coord") << "leader waiting up to " << timeout.count() << " ms for "
                               << _totalPeers << " done messages";
@@ -639,54 +649,46 @@ PeerCompletionResult ProcessCoordinatorMQ::waitForAllDone(std::chrono::milliseco
                 continue;
             }
 
-            /* avoid reporting duplicate peer IDs if something goes wrong and a
-             * peer sends more than one completion message. */
+            if (completion.event == PeerCompletionEvent::BrbDelivered) {
+                if (!protocolStartTime.has_value() || correctPeers.count(completion.peerId) == 0)
+                    continue;
+                if (deliveredCorrectPeers.insert(completion.peerId).second &&
+                    deliveredCorrectPeers.size() == correctPeers.size()) {
+                    result.brbCompletionTimeMs =
+                        std::chrono::duration<double, std::milli>(
+                            std::chrono::steady_clock::now() - *protocolStartTime)
+                            .count();
+                    broadcastStop();
+                }
+                continue;
+            }
+
+            /* Avoid counting duplicate DONE or FAILED events from the same process. */
             if (seenPeers.insert(completion.peerId).second) {
-                if (completion.succeeded) {
+                if (completion.event == PeerCompletionEvent::ProcessDone) {
                     result.completedPeers.push_back(completion.peerId);
-                    notifyPeerStopped(completion.peerId);
-                } else {
+                } else if (completion.event == PeerCompletionEvent::ProcessFailed) {
                     result.failedPeers.push_back(completion.peerId);
                     QUANTAS_LOG_ERROR("coord")
                         << "leader recorded failure from peer " << completion.peerId;
                     break;
+                } else {
+                    throw std::runtime_error("Unknown peer completion event");
                 }
             } else {
                 QUANTAS_LOG_WARN("coord")
                     << "leader ignored duplicate completion from peer " << completion.peerId;
             }
         }
+        if (!result.brbCompletionTimeMs.has_value() && result.failedPeers.empty() &&
+            !result.timedOut)
+            broadcastStop();
     } catch (const interprocess_exception& ex) {
         throw std::runtime_error("Failed to ::waitForAllDone for leader " + std::to_string(_myId) +
                                  ": " + ex.what());
     }
 
     return result;
-}
-
-void ProcessCoordinatorMQ::checkCompletionRqstStop(const quantas::Peer& peer) {
-    /*- TODO: `all_correct_delivered`: every correct peer performed brb and finished its required
-     * forwarding. This establishes 100% delivery; agreement is checked separately. */
-    const auto algoMetrics = peer.collectAlgoMetrics();
-    const bool brbDelivery = algoMetrics.at("delivered").get<bool>();
-    /*  TODO: `quiescent`: all initial actions have happened, no protocol work remains, and no
-     * queued or in-transit messages can generate further work. This allows a finished experiment to
-     * report partial delivery.*/
-    const bool initActionCompleted = algoMetrics.at("initial_action_completed").get<bool>();
-    const bool emptyStream = algoMetrics.at("empty_local_stream").get<bool>();
-
-    const auto* mq =
-        dynamic_cast<const quantas::NetworkInterfaceConcreteMQ*>(peer.getNetworkInterface());
-    if (mq == nullptr)
-        return;
-
-    const std::size_t pendingMsgCount = mq->getPendingMessageCount();
-
-    const quantas::TransportMetrics transport = mq->transportMetrics();
-
-    const uint64_t sent = transport.sent;
-    const uint64_t receivedRaw = transport.receivedRaw;
-    const uint64_t deliveredToInstream = transport.deliveredToInstream;
 }
 
 /* Utility: Destroy this process's coordinator object. Queue removal is handled explicitly by

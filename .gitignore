@@ -30,10 +30,10 @@ quantas/TrailPeer/*Logs*/**/*
 CLAUDE.md
 AGENTS.md
 .claude/
-.codex/
 Documentation/papers/
 Documentation/books/
 /results/
 /Results/
 /quantas_mbrb-main/
 /quantas_mtrc-main/
+/docs/

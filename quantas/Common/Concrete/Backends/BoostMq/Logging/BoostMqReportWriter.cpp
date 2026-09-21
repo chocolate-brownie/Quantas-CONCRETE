@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <fstream>
 #include <iostream>
-#include <map>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -85,6 +84,16 @@ nlohmann::json BoostMqReportWriter::makeTestReport(const TestReportInfo& info) {
     testReport["success"] = info.success;
     testReport["timedOut"] = info.readyTimedOut || info.completionTimedOut;
     testReport["durationSeconds"] = info.duration.count();
+    if (info.stopReason.has_value()) {
+        testReport["stop_reason"] = *info.stopReason == ProtocolStopReason::AllCorrectDelivered
+                                        ? "all_correct_delivered"
+                                        : "deadline_reached";
+    } else {
+        testReport["stop_reason"] = nullptr;
+    }
+    testReport["brb_completion_time_ms"] = info.brbCompletionTimeMs.has_value()
+                                               ? nlohmann::json(*info.brbCompletionTimeMs)
+                                               : nlohmann::json(nullptr);
 
     testReport["readyPeers"] = info.readyPeers;
     testReport["completedPeers"] = info.completedPeers;
@@ -241,27 +250,8 @@ nlohmann::json BoostMqReportWriter::summarizeAlgoReliability(const nlohmann::jso
     if (!peerMetrics.is_object() || peerMetrics.empty())
         throw std::runtime_error("Cannot summarize algorithm metrics: no peer reports");
 
-    uint64_t cntDelivered = 0;      // All peers that delivered a value, including Byzantine peers.
-    uint64_t cntDeliveredRound = 0; // Sum of delivery rounds for those peers.
-    uint64_t cntCorrectDelivered = 0; // Non-Byzantine peers that delivered a value.
-    uint64_t cntCorrect = 0;          // All non-Byzantine peers, whether they delivered or not.
-    std::map<int, int> deliveryCount; // Maps each delivered value to its non-Byzantine peer count.
-    uint64_t totalDelivered = 0;      // Non-Byzantine peers that delivered, used for safety.
+    AlgoMetrics algoMetrics;
 
-    double avgDeliveryRound = 0.0; // Average local delivery round among peers that delivered.
-    double avgTermination = 0.0;   // Percentage of non-Byzantine peers that delivered.
-
-    // Among non-byz peers that delivered, the % sharing the most common value
-    double avgSafety = 0.0;
-
-    uint64_t totalMessagesSent = 0; // Total algorithm messages sent by all peers.
-    double avgMessagesSent = 0.0;   // All peers' sent messages divided by non-Byzantine peer count.
-
-    /* Read each peer's saved algorithm report for this test, not its live C++ object.
-     * Reject missing metrics and invalid delivery rounds. Count peers that delivered,
-     * add their delivery rounds, and count non-Byzantine peers separately.
-     * Group delivered values from non-Byzantine peers to measure agreement later.
-     * Also add the algorithm messages sent by all peers, including Byzantine peers. */
     for (const auto& [id, metrics] : peerMetrics.items()) {
         if (!metrics.contains("algorithmMetrics") || !metrics.at("algorithmMetrics").is_object() ||
             metrics.at("algorithmMetrics").empty())
@@ -273,22 +263,22 @@ nlohmann::json BoostMqReportWriter::summarizeAlgoReliability(const nlohmann::jso
             const auto& round = peer.at("delivery_round");
             if (!round.is_number_integer() || round < 0)
                 throw std::runtime_error("Invalid delivery round for peer " + id);
-            ++cntDelivered;
-            cntDeliveredRound += round.get<uint64_t>();
+            ++algoMetrics.cntDelivered;
+            algoMetrics.cntDeliveredRound += round.get<uint64_t>();
         }
 
         if (!peer.at("is_byzantine").get<bool>()) {
-            ++cntCorrect;
+            ++algoMetrics.cntCorrect;
             if (peer.at("delivered").get<bool>() == true)
-                ++cntCorrectDelivered;
+                ++algoMetrics.cntCorrectDelivered;
         }
 
         if (peer.at("delivered").get<bool>() && !peer.at("is_byzantine").get<bool>()) {
-            ++deliveryCount[peer.at("delivered_value").get<int>()];
-            ++totalDelivered;
+            ++algoMetrics.deliveryCount[peer.at("delivered_value").get<int>()];
+            ++algoMetrics.totalDelivered;
         }
 
-        totalMessagesSent += peer.at("messages_sent").get<uint64_t>();
+        algoMetrics.totalMessagesSent += peer.at("messages_sent").get<uint64_t>();
     }
 
     /* Turn the collected counts into results for this test.
@@ -298,31 +288,37 @@ nlohmann::json BoostMqReportWriter::summarizeAlgoReliability(const nlohmann::jso
      * Divide all peers' sent messages by the non-Byzantine peer count for average messages.
      * Keep results at zero when there is nobody to divide by. Round safety, termination,
      * and average messages to two decimal places, then return the results as JSON. */
-    if (cntDelivered > 0)
-        avgDeliveryRound = static_cast<double>(cntDeliveredRound) / cntDelivered;
+    if (algoMetrics.cntDelivered > 0)
+        algoMetrics.avgDeliveryRound =
+            static_cast<double>(algoMetrics.cntDeliveredRound) / algoMetrics.cntDelivered;
 
-    if (totalDelivered > 0) {
-        for (const auto& [value, count] : deliveryCount)
-            avgSafety = std::max(avgSafety, static_cast<double>(count) / totalDelivered);
-        avgSafety = round(avgSafety * 10000.0) / 100.0;
+    if (algoMetrics.totalDelivered > 0) {
+        for (const auto& [value, count] : algoMetrics.deliveryCount)
+            algoMetrics.avgSafety = std::max(algoMetrics.avgSafety, static_cast<double>(count) /
+                                                                        algoMetrics.totalDelivered);
+        algoMetrics.avgSafety = round(algoMetrics.avgSafety * 10000.0) / 100.0;
     }
 
-    if (cntCorrect > 0) {
-        avgTermination = static_cast<double>(cntCorrectDelivered) / cntCorrect;
-        avgTermination *= 100.0;                                // convert to percentage
-        avgTermination = round(avgTermination * 100.0) / 100.0; // round to 2 decimal places
+    if (algoMetrics.cntCorrect > 0) {
+        algoMetrics.avgTermination =
+            static_cast<double>(algoMetrics.cntCorrectDelivered) / algoMetrics.cntCorrect;
+        algoMetrics.avgTermination *= 100.0; // convert to percentage
+        algoMetrics.avgTermination =
+            round(algoMetrics.avgTermination * 100.0) / 100.0; // round to 2 decimal places
     }
 
-    if (cntCorrect > 0) {
-        avgMessagesSent = static_cast<double>(totalMessagesSent) / cntCorrect;
-        avgMessagesSent = round(avgMessagesSent * 100.0) / 100.0; // round to 2 decimal places
+    if (algoMetrics.cntCorrect > 0) {
+        algoMetrics.avgMessagesSent =
+            static_cast<double>(algoMetrics.totalMessagesSent) / algoMetrics.cntCorrect;
+        algoMetrics.avgMessagesSent =
+            round(algoMetrics.avgMessagesSent * 100.0) / 100.0; // round to 2 decimal places
     }
 
-    return nlohmann::json{{"avg_delivery_round", avgDeliveryRound},
-                          {"avg_termination", avgTermination},
-                          {"avg_safety", avgSafety},
-                          {"total_msg_sent", totalMessagesSent},
-                          {"avg_msg_sent", avgMessagesSent}};
+    return nlohmann::json{{"avg_delivery_round", algoMetrics.avgDeliveryRound},
+                          {"avg_termination", algoMetrics.avgTermination},
+                          {"avg_safety", algoMetrics.avgSafety},
+                          {"total_msg_sent", algoMetrics.totalMessagesSent},
+                          {"avg_msg_sent", algoMetrics.avgMessagesSent}};
 }
 
 /* Main metrics operation: Combine peer transport counters into one simple reliability summary

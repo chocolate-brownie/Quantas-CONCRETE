@@ -8,16 +8,18 @@
 
 int main() {
     const auto record = [](bool delivered, bool byzantine, int round, int value, int sent) {
-        return nlohmann::json{{"algorithmMetrics", {{"delivered", delivered},
-            {"is_byzantine", byzantine}, {"delivery_round", round},
-            {"delivered_value", value}, {"messages_sent", sent}}}};
+        return nlohmann::json{{"algorithmMetrics",
+                               {{"delivered", delivered},
+                                {"is_byzantine", byzantine},
+                                {"delivery_round", round},
+                                {"delivered_value", value},
+                                {"messages_sent", sent}}}};
     };
-    nlohmann::json algorithmPeers = {
-        {"0", record(true, false, 2, 0, 4)},
-        {"1", record(true, false, 4, 0, 6)},
-        {"2", record(true, false, 6, 1, 2)},
-        {"3", record(false, false, -1, -1, 0)},
-        {"4", record(true, true, 8, 1, 8)}};
+    nlohmann::json algorithmPeers = {{"0", record(true, false, 2, 0, 4)},
+                                     {"1", record(true, false, 4, 0, 6)},
+                                     {"2", record(true, false, 6, 1, 2)},
+                                     {"3", record(false, false, -1, -1, 0)},
+                                     {"4", record(true, true, 8, 1, 8)}};
     const auto summary = quantas::BoostMqReportWriter::summarizeAlgoReliability(algorithmPeers);
     assert(summary.at("avg_delivery_round") == 5.0);
     assert(summary.at("avg_termination") == 75.0);
@@ -26,13 +28,22 @@ int main() {
     assert(summary.at("avg_msg_sent") == 5.0);
     quantas::BoostMqReportWriter::TestReportInfo algorithmInfo;
     algorithmInfo.success = true;
+    algorithmInfo.stopReason = quantas::ProtocolStopReason::AllCorrectDelivered;
+    algorithmInfo.brbCompletionTimeMs = 12.5;
     algorithmInfo.peerMetrics = algorithmPeers;
     algorithmInfo.algoReliability =
         quantas::BoostMqReportWriter::makeAlgorithmSummary("CPAPeer", algorithmInfo);
     assert(algorithmInfo.algoReliability.at("available") == true);
     assert(algorithmInfo.algoReliability.at("avg_safety") == 66.67);
-    assert(quantas::BoostMqReportWriter::makeTestReport(algorithmInfo).at("algoReliability") ==
-           algorithmInfo.algoReliability);
+    const auto completedReport = quantas::BoostMqReportWriter::makeTestReport(algorithmInfo);
+    assert(completedReport.at("algoReliability") == algorithmInfo.algoReliability);
+    assert(completedReport.at("stop_reason") == "all_correct_delivered");
+    assert(completedReport.at("brb_completion_time_ms") == 12.5);
+    algorithmInfo.stopReason = quantas::ProtocolStopReason::DeadlineReached;
+    algorithmInfo.brbCompletionTimeMs.reset();
+    const auto deadlineReport = quantas::BoostMqReportWriter::makeTestReport(algorithmInfo);
+    assert(deadlineReport.at("stop_reason") == "deadline_reached");
+    assert(deadlineReport.at("brb_completion_time_ms").is_null());
     for (const auto* peerType : {"AltBitPeer", "DolevPeer"}) {
         const auto unavailable =
             quantas::BoostMqReportWriter::makeAlgorithmSummary(peerType, algorithmInfo);
@@ -84,12 +95,12 @@ int main() {
     fs::create_directories(testDirectory);
 
     const fs::path orderedPath = testDirectory / "leader_report.json";
-    const nlohmann::json orderingReport = {{"tests", nlohmann::json::array({
-        {{"algoReliability", {{"available", true}}},
-         {"transportReliability", {{"sent_total", 20}}},
-         {"completedPeerCount", 5}, {"peerMetrics", algorithmPeers}},
-        {{"testIndex", 1}, {"success", false}}
-    })}};
+    const nlohmann::json orderingReport = {
+        {"tests", nlohmann::json::array({{{"algoReliability", {{"available", true}}},
+                                          {"transportReliability", {{"sent_total", 20}}},
+                                          {"completedPeerCount", 5},
+                                          {"peerMetrics", algorithmPeers}},
+                                         {{"testIndex", 1}, {"success", false}}})}};
     quantas::BoostMqReportWriter::writeLeaderReport(orderedPath.string(), orderingReport);
     std::ifstream orderedInput(orderedPath);
     const auto orderedReport = nlohmann::ordered_json::parse(orderedInput);

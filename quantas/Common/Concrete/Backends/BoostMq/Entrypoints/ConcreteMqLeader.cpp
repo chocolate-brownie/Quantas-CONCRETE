@@ -11,6 +11,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 using bmqrep = quantas::BoostMqReportWriter;
@@ -76,6 +77,20 @@ std::optional<std::vector<size_t>> selectExperimentIndexes(const LeaderCliArgs& 
 
     indexes.push_back(*cli.experimentIndex);
     return indexes;
+}
+
+std::vector<quantas::interfaceId> correctPeerIds(const nlohmann::json& experiment, int totalPeers) {
+    const auto parameters = experiment.value("parameters", nlohmann::json::object());
+    const auto byzantineIds = parameters.value("byzantines", std::vector<int>{});
+    const std::unordered_set<int> byzantines(byzantineIds.begin(), byzantineIds.end());
+
+    std::vector<quantas::interfaceId> correct;
+    correct.reserve(static_cast<size_t>(totalPeers));
+    for (int id = 0; id < totalPeers; ++id) {
+        if (byzantines.count(id) == 0)
+            correct.push_back(id);
+    }
+    return correct;
 }
 
 /* Readiness-timeout helper: Save the facts known when startup fails, ask any waiting peers to stop,
@@ -247,8 +262,14 @@ int main(int argc, char* argv[]) {
                 /* Assignment and start are required control messages. If either send fails or
                  * reaches its deadline, save the failed test, stop peers, clean the queues, and
                  * leave the test loop instead of allowing the leader to wait forever. */
+                const bool tracksBrbCompletion = exp.initialPeerType == "CPAPeer";
+                const auto expectedCorrectPeers =
+                    tracksBrbCompletion ? correctPeerIds(experiment, exp.initialPeers)
+                                        : std::vector<quantas::interfaceId>{};
+                std::chrono::steady_clock::time_point protocolStartTime;
                 try {
                     coordinator.sendAssignments(topology.assignments);
+                    protocolStartTime = std::chrono::steady_clock::now();
                     coordinator.broadcastStart();
                 } catch (const std::exception& ex) {
                     QUANTAS_LOG_ERROR("coord") << ex.what();
@@ -257,14 +278,13 @@ int main(int argc, char* argv[]) {
                     break;
                 }
 
-                /* Wait for every peer to finish. When the final peer reports done, this operation
-                 * also sends the normal stop message. If that required stop send fails, record the
-                 * test as unsuccessful, stop peers best-effort, clean the queues, and end the
-                 * test.*/
                 quantas::PeerCompletionResult completionResult;
                 try {
-                    completionResult =
-                        coordinator.waitForAllDone(std::chrono::milliseconds(exp.doneTimeoutMs));
+                    completionResult = coordinator.waitForAllDone(
+                        std::chrono::milliseconds(exp.doneTimeoutMs), expectedCorrectPeers,
+                        tracksBrbCompletion ? std::optional<std::chrono::steady_clock::time_point>(
+                                                  protocolStartTime)
+                                            : std::nullopt);
                 } catch (const std::exception& ex) {
                     QUANTAS_LOG_ERROR("coord") << ex.what();
                     handleControlSendFailure(allTestsSucceeded, experimentTimedOut, coordinator,
@@ -274,6 +294,13 @@ int main(int argc, char* argv[]) {
 
                 testInfo.completedPeers = completionResult.completedPeers;
                 testInfo.completionTimedOut = completionResult.timedOut;
+                if (tracksBrbCompletion && !completionResult.timedOut &&
+                    completionResult.failedPeers.empty()) {
+                    testInfo.stopReason = completionResult.brbCompletionTimeMs.has_value()
+                                              ? quantas::ProtocolStopReason::AllCorrectDelivered
+                                              : quantas::ProtocolStopReason::DeadlineReached;
+                    testInfo.brbCompletionTimeMs = completionResult.brbCompletionTimeMs;
+                }
 
                 testEndTime = std::chrono::high_resolution_clock::now();
                 testInfo.duration = testEndTime - testStartTime;

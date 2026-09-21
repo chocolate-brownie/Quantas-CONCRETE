@@ -5,10 +5,15 @@
 #include "quantas/Common/Concrete/Runtime/Config/RuntimeConfig.hpp"
 #include "quantas/Common/Json.hpp"
 #include <chrono>
+#include <cstdint>
+#include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
 namespace quantas {
+
+enum class ProtocolStopReason { AllCorrectDelivered, DeadlineReached };
 
 /* Build and write the BoostMQ leader report. All operations are static because the writer does not
  * keep any hidden state between experiments. */
@@ -29,6 +34,8 @@ class BoostMqReportWriter {
         bool completionTimedOut{false};
         bool readyTimedOut{false};
         bool success{false};
+        std::optional<ProtocolStopReason> stopReason;
+        std::optional<double> brbCompletionTimeMs;
     };
 
     /* Main report operations: Build the experiment and test JSON sections. */
@@ -55,9 +62,25 @@ class BoostMqReportWriter {
     static nlohmann::json summarizeTransportReliability(const nlohmann::json& peerMetrics);
     static nlohmann::json summarizeAlgoReliability(const nlohmann::json& peerMetrics);
     static nlohmann::json makeAlgorithmSummary(const std::string& peerType,
-                                                const TestReportInfo& info);
+                                               const TestReportInfo& info);
 
   private:
+    struct AlgoMetrics {
+        uint64_t cntDelivered{0};
+        /* Sum of peers' local delivery-loop counters; retained for Abstract-compatible reporting
+         * and not a Concrete wall-clock time measurement. */
+        uint64_t cntDeliveredRound{0};
+        uint64_t cntCorrectDelivered{0};
+        uint64_t cntCorrect{0};
+        std::map<int, int> deliveryCount;
+        uint64_t totalDelivered{0};
+        double avgDeliveryRound{0.0};
+        double avgTermination{0.0};
+        double avgSafety{0.0};
+        uint64_t totalMessagesSent{0};
+        double avgMessagesSent{0.0};
+    };
+
     /* Utility: Read the JSON metrics written by one peer. */
     static bool readPeerMetricFile(const std::string& path, nlohmann::json& peerMetrics);
 };

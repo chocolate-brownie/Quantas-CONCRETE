@@ -34,7 +34,7 @@ class CPAPeer : public Peer {
     void initParameters(const std::vector<Peer*>& peers, json parameters) override;
     void performComputation() override;
     void endOfRound(std::vector<Peer*>& peers) override;
-    void endOfTime(std::vector<Peer*>& peers) override;
+    bool localProtocolCompleted() const override;
     nlohmann::json collectAlgoMetrics() const override;
 
     NetworkInterface* releaseNetworkInterface();
