@@ -8,12 +8,15 @@
 
 int main() {
     const auto record = [](bool delivered, bool byzantine, int round, int value, int sent) {
-        return nlohmann::json{{"algorithmMetrics",
-                               {{"delivered", delivered},
-                                {"is_byzantine", byzantine},
-                                {"delivery_round", round},
-                                {"delivered_value", value},
-                                {"messages_sent", sent}}}};
+        nlohmann::json result = {{"algorithmMetrics",
+                                  {{"delivered", delivered},
+                                   {"is_byzantine", byzantine},
+                                   {"delivery_round", round},
+                                   {"delivered_value", value},
+                                   {"messages_sent", sent}}}};
+        if (delivered)
+            result["brbDeliveryTimeMs"] = round * 10.0;
+        return result;
     };
     nlohmann::json algorithmPeers = {{"0", record(true, false, 2, 0, 4)},
                                      {"1", record(true, false, 4, 0, 6)},
@@ -22,6 +25,7 @@ int main() {
                                      {"4", record(true, true, 8, 1, 8)}};
     const auto summary = quantas::BoostMqReportWriter::summarizeAlgoReliability(algorithmPeers);
     assert(summary.at("avg_delivery_round") == 5.0);
+    assert(summary.at("avg_delivery_time_ms") == 50.0);
     assert(summary.at("avg_termination") == 75.0);
     assert(summary.at("avg_safety") == 66.67);
     assert(summary.at("total_msg_sent") == 20);
@@ -67,6 +71,7 @@ int main() {
     const auto none = quantas::BoostMqReportWriter::summarizeAlgoReliability(
         {{"0", record(false, true, -1, -1, 0)}});
     assert(none.at("avg_delivery_round") == 0.0);
+    assert(none.at("avg_delivery_time_ms") == 0.0);
     assert(none.at("avg_termination") == 0.0);
     assert(none.at("avg_safety") == 0.0);
     assert(none.at("avg_msg_sent") == 0.0);

@@ -12,6 +12,8 @@
 *.o
 *.d
 *.exe
+*.pyc
+__pycache__/
 /.vs
 .vs/
 *.sln

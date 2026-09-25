@@ -75,6 +75,8 @@ class BoostMqReportWriter {
         std::map<int, int> deliveryCount;
         uint64_t totalDelivered{0};
         double avgDeliveryRound{0.0};
+        double sumDeliveryTimeMs{0.0};
+        double avgDeliveryTimeMs{0.0};
         double avgTermination{0.0};
         double avgSafety{0.0};
         uint64_t totalMessagesSent{0};

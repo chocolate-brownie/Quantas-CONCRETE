@@ -15,6 +15,7 @@
 #include <ctime>
 #include <iostream>
 #include <optional>
+#include <ratio>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -165,8 +166,9 @@ void cleanUp(std::vector<quantas::Peer*>& localPeers) {
     localPeers.clear();
 }
 
-void runForDuration(std::vector<quantas::Peer*>& localPeers, std::chrono::milliseconds duration,
-                    quantas::ProcessCoordinatorMQ& coordinator) {
+std::chrono::steady_clock::duration runForDuration(std::vector<quantas::Peer*>& localPeers,
+                                                   std::chrono::milliseconds duration,
+                                                   quantas::ProcessCoordinatorMQ& coordinator) {
 
     constexpr auto pollInterval = std::chrono::milliseconds(10);
 
@@ -183,21 +185,30 @@ void runForDuration(std::vector<quantas::Peer*>& localPeers, std::chrono::millis
     quantas::RoundManager::setLastRound(0);
 
     const auto deadline = std::chrono::steady_clock::now() + duration;
+    const auto startTime = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::duration deliveryTime{};
 
     while (std::chrono::steady_clock::now() < deadline && !peer.localProtocolCompleted() &&
            !coordinator.pollForStop()) {
         const auto nextCheck = std::chrono::steady_clock::now() + pollInterval;
         quantas::RoundManager::incrementRound();
         peer.receive();
+
         peer.tryPerformComputation();
+
         if (!peer.localProtocolCompleted())
             std::this_thread::sleep_until(std::min(nextCheck, deadline));
+
+        const auto endTime = std::chrono::steady_clock::now();
+        deliveryTime = endTime - startTime;
     }
 
     if (peer.localProtocolCompleted())
         coordinator.notifyBrbDelivered(peer.publicId());
 
     peer.endOfExperiment(localPeers);
+
+    return deliveryTime;
 }
 
 void runRounds(std::vector<quantas::Peer*>& localPeers, int rounds,
@@ -310,7 +321,8 @@ void resetTransportMetrics(const std::vector<quantas::Peer*>& localPeers) {
 
 void emitFinalExperimentMetrics(const std::chrono::high_resolution_clock::time_point& startTime,
                                 const std::vector<quantas::Peer*>& localPeers,
-                                std::size_t dataQueueCapacity) {
+                                std::size_t dataQueueCapacity,
+                                std::chrono::steady_clock::duration brbDeliveryTimeMs) {
     const auto endTime = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double> duration = endTime - startTime;
     const auto transportMetrics = collectTransportMetrics(localPeers);
@@ -321,6 +333,12 @@ void emitFinalExperimentMetrics(const std::chrono::high_resolution_clock::time_p
         "transportMetrics", quantas::makeTransportMetricsJson(transportMetrics, dataQueueCapacity));
 
     quantas::LogWriter::setValue("algorithmMetrics", localPeers.front()->collectAlgoMetrics());
+
+    if (localPeers.front()->localProtocolCompleted()) {
+        quantas::LogWriter::setValue(
+            "brbDeliveryTimeMs",
+            std::chrono::duration<double, std::milli>(brbDeliveryTimeMs).count());
+    }
 
     QUANTAS_LOG_INFO("runner") << "printing output";
     quantas::LogWriter::print();
@@ -419,21 +437,24 @@ int main(int argc, char** argv) {
 
             /* Start the timer immediately before the algorithm begins running its rounds. */
             const auto startTime = std::chrono::high_resolution_clock::now();
+            std::chrono::steady_clock::duration deliveryMs{};
 
             try {
                 /* Let this peer receive messages and perform its algorithm work for the configured
                  * number of local rounds. */
-                runForDuration(localPeers, std::chrono::seconds(2), coordinator);
+                deliveryMs = runForDuration(localPeers, std::chrono::seconds(2), coordinator);
             } catch (...) {
                 /* If execution fails, save the metrics collected so far and pass the error to the
                  * main failure handler below. */
-                emitFinalExperimentMetrics(startTime, localPeers, queueConfig.dataQueueCapacity);
+                emitFinalExperimentMetrics(startTime, localPeers, queueConfig.dataQueueCapacity,
+                                           deliveryMs);
                 throw;
             }
 
             /* Save this peer's runtime, memory use, and message transport counters after a
              * successful run. */
-            emitFinalExperimentMetrics(startTime, localPeers, queueConfig.dataQueueCapacity);
+            emitFinalExperimentMetrics(startTime, localPeers, queueConfig.dataQueueCapacity,
+                                       deliveryMs);
 
             /* Send DONE to tell the leader that this peer completed its configured local rounds and
              * wrote its metrics. */

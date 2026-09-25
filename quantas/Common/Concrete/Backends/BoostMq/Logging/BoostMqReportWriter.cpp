@@ -263,8 +263,13 @@ nlohmann::json BoostMqReportWriter::summarizeAlgoReliability(const nlohmann::jso
             const auto& round = peer.at("delivery_round");
             if (!round.is_number_integer() || round < 0)
                 throw std::runtime_error("Invalid delivery round for peer " + id);
+            if (!metrics.contains("brbDeliveryTimeMs") ||
+                !metrics.at("brbDeliveryTimeMs").is_number() ||
+                metrics.at("brbDeliveryTimeMs").get<double>() < 0.0)
+                throw std::runtime_error("Invalid BRB delivery time for peer " + id);
             ++algoMetrics.cntDelivered;
             algoMetrics.cntDeliveredRound += round.get<uint64_t>();
+            algoMetrics.sumDeliveryTimeMs += metrics.at("brbDeliveryTimeMs").get<double>();
         }
 
         if (!peer.at("is_byzantine").get<bool>()) {
@@ -288,9 +293,12 @@ nlohmann::json BoostMqReportWriter::summarizeAlgoReliability(const nlohmann::jso
      * Divide all peers' sent messages by the non-Byzantine peer count for average messages.
      * Keep results at zero when there is nobody to divide by. Round safety, termination,
      * and average messages to two decimal places, then return the results as JSON. */
-    if (algoMetrics.cntDelivered > 0)
+    if (algoMetrics.cntDelivered > 0) {
         algoMetrics.avgDeliveryRound =
             static_cast<double>(algoMetrics.cntDeliveredRound) / algoMetrics.cntDelivered;
+        algoMetrics.avgDeliveryTimeMs =
+            algoMetrics.sumDeliveryTimeMs / algoMetrics.cntDelivered;
+    }
 
     if (algoMetrics.totalDelivered > 0) {
         for (const auto& [value, count] : algoMetrics.deliveryCount)
@@ -315,6 +323,7 @@ nlohmann::json BoostMqReportWriter::summarizeAlgoReliability(const nlohmann::jso
     }
 
     return nlohmann::json{{"avg_delivery_round", algoMetrics.avgDeliveryRound},
+                          {"avg_delivery_time_ms", algoMetrics.avgDeliveryTimeMs},
                           {"avg_termination", algoMetrics.avgTermination},
                           {"avg_safety", algoMetrics.avgSafety},
                           {"total_msg_sent", algoMetrics.totalMessagesSent},
