@@ -370,3 +370,8 @@
   - confirmed: no active QUANTAS BoostMQ processes or `/dev/shm` queue resources remain.
   - inferred: graphing k=3 first is the lowest-risk way to validate the new dataset schema before longer campaigns.
   - unknown: CI status and Overleaf compilation, because no LaTeX compiler is installed locally.
+
+## 2026-09-25 16:25 CEST
+- Organized CPA edge-remover runners and datasets by k value under `scripts/run_experiments/CPA/edge_remover`.
+- Added the k=3 termination graph generator with line and bar comparisons using Matplotlib's default blue/orange palette.
+- Validated both 1,000-row datasets and generated one-page PDF figures for Overleaf.

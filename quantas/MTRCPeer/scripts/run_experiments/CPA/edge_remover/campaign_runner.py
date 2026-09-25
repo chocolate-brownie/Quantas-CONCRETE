@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a resumable CPA edge-remover campaign and export one CSV row per test."""
+"""Shared runner for resumable CPA edge-remover experiment campaigns."""
 
 import argparse
 import copy
@@ -19,8 +19,16 @@ import tempfile
 import time
 
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = Path(__file__).resolve().parents[5]
+def find_repo_root(start):
+    """Find the repository without depending on this module's directory depth."""
+    for directory in (start, *start.parents):
+        if ((directory / "Makefile").is_file() and
+                (directory / "quantas/MTRCPeer/topologies").is_dir()):
+            return directory
+    raise RuntimeError(f"Cannot find the QUANTAS repository above {start}")
+
+
+REPO_ROOT = find_repo_root(Path(__file__).resolve().parent)
 TOPOLOGY_DIR = REPO_ROOT / "quantas/MTRCPeer/topologies"
 ABSTRACT_ROOT = REPO_ROOT / "quantas_mtrc-main/Quantas"
 LAUNCHER = Path("quantas/Common/Concrete/Backends/BoostMq/Entrypoints/runBoostMq.sh")
@@ -506,7 +514,3 @@ def run_campaign(backend, k, max_t, script_file, argv=None):
             for sig, handler in handlers.items():
                 signal.signal(sig, handler)
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(run_campaign("abstract", 3, 5, __file__))
