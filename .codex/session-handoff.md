@@ -341,3 +341,32 @@
   - confirmed: targeted hygiene scan of TODO.md and the two Python scripts found only the TODO document heading.
   - inferred: the untracked nested runner and deleted root runner represent a relocation; functional equivalence is unverified.
   - unknown: remote freshness without fetch and broader build/test status.
+
+## 2026-09-25 15:03 CEST
+
+## Session Context Contract
+- Objective: Add comparable Concrete CPA delivery-time aggregation, create edge-remover campaign runners, preserve completed k=3 results, and organize the local report by k.
+- Status: completed
+- Current State:
+  - Branch `fix/issue-57-safe-boostmq-completion` is clean and synchronized with its origin at commit `7cfcff1e107`.
+  - Concrete peer reports record `brbDeliveryTimeMs` for delivered peers, and leader reports aggregate it as `avg_delivery_time_ms` across all delivered peers.
+  - Six resumable CPA edge-remover runners cover Abstract and Concrete for k=3, k=5, and k=7.
+  - The committed k=3 Abstract and Concrete CSV files each contain 1,000 rows, all marked successful.
+  - The local ignored Overleaf edge-remover section is grouped by k=3, k=5, and k=7 with CPA and Dolev placeholders for termination, agreement, completion, and message cost.
+- Key Risks:
+  - `avg_delivery_time_ms` includes every delivered peer, including Byzantine peers, matching Abstract `avgDeliveryRound` membership rather than correct-peer-only termination.
+  - Per-peer delivery time starts when that process enters `runForDuration`; it is not synchronized global wall-clock time.
+  - CSV `raw_report` fields contain machine-specific absolute paths.
+  - The Overleaf report under `docs/` is ignored and was not included in commit `7cfcff1e107`.
+  - The unrelated stash `stash@{0}` for issue #40 remains and must not be popped blindly.
+- Open Questions:
+  - Whether generated CSV datasets should remain version-controlled for the full k=5 and k=7 campaigns.
+  - Whether the next work should run k=5 first or generate plots from the completed k=3 data.
+- Validation: passed — focused BoostMQ report-writer test, Python bytecode compilation for all six runners, 1,000-row success checks for both k=3 CSVs, clean/pushed Git state, and BoostMQ resource cleanup.
+- Next Action: Generate and review the k=3 comparison graphs before starting the longer k=5 campaign.
+- Evidence Notes:
+  - confirmed: commit `7cfcff1e107` is pushed and local/remote divergence is 0/0.
+  - confirmed: both committed k=3 CSVs contain 1,000 successful rows.
+  - confirmed: no active QUANTAS BoostMQ processes or `/dev/shm` queue resources remain.
+  - inferred: graphing k=3 first is the lowest-risk way to validate the new dataset schema before longer campaigns.
+  - unknown: CI status and Overleaf compilation, because no LaTeX compiler is installed locally.

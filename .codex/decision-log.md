@@ -38,3 +38,9 @@
 - Require all peer processes and BoostMQ queue resources to be cleaned before the next run.
 - Compare Abstract and BoostMQ CPA/Dolev metrics as curves over elapsed time.
 - Use Issue #58 to combine per-peer CPA/Dolev state into global algorithm metrics while keeping BoostMQ transport counters separate.
+
+## 2026-09-25 15:03 CEST — Compare Concrete delivery time with Abstract delivery round
+
+- Record per-peer Concrete BRB delivery latency from entry into `runForDuration` until local protocol completion.
+- Aggregate `avg_delivery_time_ms` over all peers that delivered, including Byzantine peers, to match the peer membership used by Abstract `avgDeliveryRound`.
+- Keep coordinator `brb_completion_time_ms` separate because it measures the final required correct-peer notification rather than mean peer completion.
