@@ -20,27 +20,6 @@
 #include <string>
 #include <vector>
 
-/*
-   ConcreteMQ Worker Runtime: two-phase execution model
-
-   Phase 1 (setup / runtime assembly)
-   - Parse CLI and load config.
-   - Extract one experiment's runtime parameters.
-   - Configure coordinator context for this experiment.
-   - Resolve output destination.
-   - Build local assignments and construct local peers/interfaces.
-
-   Phase 2 (execution / lifecycle)
-   - Run per-round receive + compute for local peers.
-   - Handle fast-path skip when no runnable local peers.
-   - Cleanup peer/interface state on success and failure.
-
-   This file keeps both phases in one unit for bring-up clarity. Utility
-   extraction points are grouped below to make later refactoring mechanical.
-   */
-
-// --------------------------- Shared data types ---------------------------
-
 struct CliArgs {
     std::string jsonPath;
     size_t experimentIndex;
@@ -48,11 +27,6 @@ struct CliArgs {
 };
 
 using PeerAssignment = quantas::PeerAssignment;
-
-/* The helpers below are intentionally written so they can later be moved to a
-   shared runtime module and reused by both:
-   - ConcreteMqPeer.cpp (worker runtime)
-   - ConcreteMqLeader.cpp (leader runtime) */
 
 // Validate assignment bounds and basic topology invariants.
 void validateAssignment(const PeerAssignment& assignment, int totalPeers) {
@@ -187,24 +161,25 @@ std::chrono::steady_clock::duration runForDuration(std::vector<quantas::Peer*>& 
     const auto deadline = std::chrono::steady_clock::now() + duration;
     const auto startTime = std::chrono::steady_clock::now();
     std::chrono::steady_clock::duration deliveryTime{};
+    bool deliveryReported = false;
 
-    while (std::chrono::steady_clock::now() < deadline && !peer.localProtocolCompleted() &&
-           !coordinator.pollForStop()) {
+    /* Keep receiving after local delivery so neighbours can still relay to this peer; otherwise
+     * its data queue fills and their sends time out. Run until the leader's STOP or the deadline. */
+    while (std::chrono::steady_clock::now() < deadline && !coordinator.pollForStop()) {
         const auto nextCheck = std::chrono::steady_clock::now() + pollInterval;
         quantas::RoundManager::incrementRound();
         peer.receive();
 
         peer.tryPerformComputation();
 
-        if (!peer.localProtocolCompleted())
-            std::this_thread::sleep_until(std::min(nextCheck, deadline));
+        if (!deliveryReported && peer.localProtocolCompleted()) {
+            deliveryTime = std::chrono::steady_clock::now() - startTime;
+            coordinator.notifyBrbDelivered(peer.publicId());
+            deliveryReported = true;
+        }
 
-        const auto endTime = std::chrono::steady_clock::now();
-        deliveryTime = endTime - startTime;
+        std::this_thread::sleep_until(std::min(nextCheck, deadline));
     }
-
-    if (peer.localProtocolCompleted())
-        coordinator.notifyBrbDelivered(peer.publicId());
 
     peer.endOfExperiment(localPeers);
 

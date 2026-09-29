@@ -38,6 +38,8 @@ class DolevPeer : public Peer {
     void initParameters(const std::vector<Peer *> &peers, json parameters) override;
     void performComputation() override;
     void endOfRound(std::vector<Peer *> &peers) override;
+    bool localProtocolCompleted() const override;
+    nlohmann::json collectAlgoMetrics() const override;
 
     NetworkInterface *releaseNetworkInterface();
 
@@ -53,13 +55,14 @@ class DolevPeer : public Peer {
     int mDelivered = -1; // message that this peer delivered
 
     unordered_map<int, vector<unordered_set<interfaceId>>> receivedMessages = {}; // m -> list of path vectors from which this peer has received m
+    vector<int> byzantineIds = {}; // byzantine ids from the parameters (Concrete stand-in for allPeers)
 
 
   private:
     void checkInStrm();
 
     json buildMsg(int m, const unordered_set<interfaceId> &path) const;
-    void propagateMsg(int m, const unordered_set<interfaceId> &path, interfaceId srcId = -1);
+    void propagateMsg(int m, const unordered_set<interfaceId> &path);
 
     void correctBehavior();
     void byzantineBehavior();

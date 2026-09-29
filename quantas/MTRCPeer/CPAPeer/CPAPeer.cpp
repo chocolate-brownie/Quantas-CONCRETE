@@ -118,7 +118,7 @@ void CPAPeer::checkInStrm() {
 
         // check if we already delivered than do nothing
         if (delivered)
-            continue;
+            return;
 
         // add message to receivedMessages
         receivedMessages[srcId] = m;
@@ -127,10 +127,9 @@ void CPAPeer::checkInStrm() {
             delivered = true;
             deliveryRound = RoundManager::currentRound();
             mDelivered = m;
-            propagateMsg(m, getPeersWithMsg(receivedMessages, m));
-            // cout << "Peer " << publicId() << " delivered message " << m << " in round " <<
-            // deliveryRound << endl;
-            continue;
+            broadcast(msg);
+            msgsSent += neighbors().size() - 1;
+            return;
         }
 
         // check if we can deliver the message
@@ -138,13 +137,11 @@ void CPAPeer::checkInStrm() {
             delivered = true;
             deliveryRound = RoundManager::currentRound();
             mDelivered = m;
-            propagateMsg(m, getPeersWithMsg(receivedMessages, m));
-            // cout << "Peer " << publicId() << " delivered message " << m << " in round " <<
-            // deliveryRound << endl;
+            broadcast(msg);
+            msgsSent += neighbors().size() - 1;
+            return;
         }
     }
-
-    emptyStream = inStreamEmpty();
 }
 
 json CPAPeer::buildMsg(int m) const {
@@ -184,6 +181,7 @@ void CPAPeer::correctBehavior() {
 
     // check messages in inStream and propagate if valid
     checkInStrm();
+    emptyStream = inStreamEmpty();
 }
 
 void CPAPeer::byzantineBehavior() {

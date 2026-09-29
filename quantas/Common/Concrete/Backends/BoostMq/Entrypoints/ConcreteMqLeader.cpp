@@ -220,9 +220,7 @@ int main(int argc, char* argv[]) {
 
             bool allTestsSucceeded{true}, experimentTimedOut{false};
 
-            /* :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-            :::::::::::::::::::::::::::::::::::TEST EXECUTION:::::::::::::::::::::::::::::::::::::
-            ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+            /* :::::TEST EXECUTION::::::::::::::::::::::::::::::::::::: :::::::::::*/
 
             /* Run every test in the experiment through a fresh rendezvous and  collect an
              * independent result for the final experiment report. */
@@ -262,10 +260,11 @@ int main(int argc, char* argv[]) {
                 /* Assignment and start are required control messages. If either send fails or
                  * reaches its deadline, save the failed test, stop peers, clean the queues, and
                  * leave the test loop instead of allowing the leader to wait forever. */
-                const bool tracksBrbCompletion = exp.initialPeerType == "CPAPeer";
-                const auto expectedCorrectPeers =
-                    tracksBrbCompletion ? correctPeerIds(experiment, exp.initialPeers)
-                                        : std::vector<quantas::interfaceId>{};
+                const bool tracksBrbCompletion =
+                    exp.initialPeerType == "CPAPeer" || exp.initialPeerType == "DolevPeer";
+                const auto expectedCorrectPeers = tracksBrbCompletion
+                                                      ? correctPeerIds(experiment, exp.initialPeers)
+                                                      : std::vector<quantas::interfaceId>{};
                 std::chrono::steady_clock::time_point protocolStartTime;
                 try {
                     coordinator.sendAssignments(topology.assignments);

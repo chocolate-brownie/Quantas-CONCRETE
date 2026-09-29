@@ -375,3 +375,9 @@
 - Organized CPA edge-remover runners and datasets by k value under `scripts/run_experiments/CPA/edge_remover`.
 - Added the k=3 termination graph generator with line and bar comparisons using Matplotlib's default blue/orange palette.
 - Validated both 1,000-row datasets and generated one-page PDF figures for Overleaf.
+
+## 2026-09-29 CEST
+- Ported Lorenzo's updated CPA (broadcast on delivery) and Dolev (stop after delivery, path filtering, correct-neighbour guard) to Concrete; `DolevPeer` now exposes `collectAlgoMetrics`/`localProtocolCompleted` and is accepted by the leader and report writer.
+- `runForDuration` keeps draining queues after delivery until STOP or deadline.
+- Moved CPA edge-remover runners, CSVs, and figures to `experiments/CPA/edge_remover/`; added `experiments/Dolev/timeout_sweep.py`.
+- Open: Concrete Dolev still needs larger `dataQueueCapacity` and a fix for the `k_disjoint` CPU stall; CPA edge-remover results use the old buggy inputs and must be rerun on `topologies_100`. No build/tests run at commit time.

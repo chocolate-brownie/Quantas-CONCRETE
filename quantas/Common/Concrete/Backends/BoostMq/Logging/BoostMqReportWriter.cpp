@@ -233,7 +233,7 @@ nlohmann::json BoostMqReportWriter::makeAlgorithmSummary(const std::string& peer
     if (!info.success)
         return {{"available", false}, {"reason", "Test failed or is incomplete"}};
 
-    if (peerType != "CPAPeer")
+    if (peerType != "CPAPeer" && peerType != "DolevPeer")
         return {{"available", false},
                 {"reason", "No algorithm summary implemented for " + peerType}};
 

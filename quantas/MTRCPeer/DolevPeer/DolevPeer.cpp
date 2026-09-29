@@ -19,6 +19,15 @@ QUANTAS. If not, see <https://www.gnu.org/licenses/>.
 
 namespace quantas {
 
+nlohmann::json DolevPeer::collectAlgoMetrics() const {
+    return {{"peer_id", publicId()},
+            {"is_byzantine", isByzantine},
+            {"delivered", delivered},
+            {"delivered_value", mDelivered},
+            {"delivery_round", deliveryRound},
+            {"messages_sent", msgsSent}};
+}
+
 std::string pathToString(const std::unordered_set<interfaceId>& path) {
     std::string result = "{";
     bool first = true;
@@ -54,6 +63,7 @@ DolevPeer::DolevPeer(const DolevPeer &rhs) : Peer(rhs) {
     delivered = rhs.delivered;
     deliveryRound = rhs.deliveryRound;
     mDelivered = rhs.mDelivered;
+    byzantineIds = rhs.byzantineIds;
 }
 
 DolevPeer::~DolevPeer() = default;
@@ -66,6 +76,7 @@ void DolevPeer::initParameters(const std::vector<Peer *> &peers, json parameters
     if (std::find(byzantines.begin(), byzantines.end(), publicId()) != byzantines.end()) {
         isByzantine = true;
     }
+    byzantineIds = byzantines;
 }
 
 void DolevPeer::performComputation() {
@@ -93,6 +104,7 @@ NetworkInterface *DolevPeer::releaseNetworkInterface() {
 }
 
 void DolevPeer::checkInStrm() {
+    vector<int> toCheck = {};
     while (!inStreamEmpty()) {
         Packet packet = popInStream();
         interfaceId srcId = packet.sourceId();
@@ -104,31 +116,63 @@ void DolevPeer::checkInStrm() {
         // already sent this message, don't process again to avoid cycles
         if (path.find(publicId()) != path.end()) continue;
 
+        // if already delivered means that I also sent the message (m, {sender})
+        // so I can skip processing other messages given that they will have a bigger path than this
+        if (delivered) return;
+
         // if this message is directly from the sender, deliver immediately
         if (packet.sourceId() == sender && path.size() == 0) {
             delivered = true;
             deliveryRound = RoundManager::currentRound();
             mDelivered = m;
-            //cout << "[DIRECT] Peer " << publicId() << " delivered message " << m << " in round " << deliveryRound << endl;
+
+            // send this message to allow all nodes to understand I delivered
+            // then return
+            propagateMsg(m, {sender});
+            return;
         }
 
-        // insert the source of the message into the path and store it as a received message, then propagate to neighbors
-        //cout << "Round: " << RoundManager::currentRound() << ": - Peer " << publicId() << "  <--- " << msg.dump() << " from " << packet.sourceId() << endl;
-        path.insert(srcId);
-        receivedMessages[m].push_back(path);
-        propagateMsg(m, path, srcId);
+        // not enough neighbors to ever deliver, skip the disjoint check and don't propagate to avoid flooding the network
+        if (ts > neighbors().size()) continue;
 
-        // check if we can deliver the message now by checking if we have received it from ts+1 disjoint paths (removing the source)
-        vector<unordered_set<long>> modified_sets = remove_src(receivedMessages[m], 0);
+        path.insert(srcId);
+        if (!contained_in(receivedMessages[m], path)) {
+            receivedMessages[m].push_back(path);
+            propagateMsg(m, path);
+
+            if (find(toCheck.begin(), toCheck.end(), m) == toCheck.end()) {
+                toCheck.push_back(m);
+            }
+        }
+    }
+
+    // not enough neighbors to ever deliver, skip the disjoint check to save computation
+    if (ts >= neighbors().size()) return;
+
+    // if not enough correct neighbors to ever deliver, skip the disjoint check to save computation
+    int byzantine_neighbors = 0;
+    for (interfaceId nbr : neighbors()) {
+        if (byzantineIds.end() != find(byzantineIds.begin(), byzantineIds.end(), nbr)) {
+            byzantine_neighbors++;
+        }
+    }
+    if (neighbors().size() - byzantine_neighbors <= ts) return;
+
+    for (const auto& m : toCheck) {
+        vector<unordered_set<long>> modified_sets = remove_unnecessary_paths(receivedMessages[m]);
+        receivedMessages[m] = modified_sets;
+
+        modified_sets = remove_src(receivedMessages[m], 0);
         if (!delivered && k_disjoint(modified_sets, ts+1)) {
             delivered = true;
             deliveryRound = RoundManager::currentRound();
             mDelivered = m;
-            //cout << "Peer " << publicId() << " original sets" << endl;
-            //print_list_sets(modified_sets);
-            //cout << "[DISJOINT] Peer " << publicId() << " delivered message " << m << " in round " << deliveryRound << endl;
-        }
 
+            // send this message to allow all nodes to understand I delivered
+            // then return
+            propagateMsg(m, {sender});
+            return;
+        }
     }
 }
 
@@ -139,7 +183,7 @@ json DolevPeer::buildMsg(int m, const unordered_set<interfaceId> &path) const {
     return payload;
 }
 
-void DolevPeer::propagateMsg(int m, const unordered_set<interfaceId> &path, interfaceId srcId) {
+void DolevPeer::propagateMsg(int m, const unordered_set<interfaceId> &path) {
     for (interfaceId peerId : path) {
         if (peerId == publicId()) {
             // already sent this message, don't propagate again to avoid cycles
@@ -185,5 +229,7 @@ void DolevPeer::byzantineBehavior() {
     }
 
 }
+
+bool DolevPeer::localProtocolCompleted() const { return delivered; }
 
 } // namespace quantas

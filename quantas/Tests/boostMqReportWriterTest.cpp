@@ -48,13 +48,15 @@ int main() {
     const auto deadlineReport = quantas::BoostMqReportWriter::makeTestReport(algorithmInfo);
     assert(deadlineReport.at("stop_reason") == "deadline_reached");
     assert(deadlineReport.at("brb_completion_time_ms").is_null());
-    for (const auto* peerType : {"AltBitPeer", "DolevPeer"}) {
-        const auto unavailable =
-            quantas::BoostMqReportWriter::makeAlgorithmSummary(peerType, algorithmInfo);
-        assert(unavailable.at("available") == false);
-        assert(unavailable.contains("reason"));
-        assert(!unavailable.contains("avg_safety"));
-    }
+    const auto unavailable =
+        quantas::BoostMqReportWriter::makeAlgorithmSummary("AltBitPeer", algorithmInfo);
+    assert(unavailable.at("available") == false);
+    assert(unavailable.contains("reason"));
+    assert(!unavailable.contains("avg_safety"));
+    const auto dolevSummary =
+        quantas::BoostMqReportWriter::makeAlgorithmSummary("DolevPeer", algorithmInfo);
+    assert(dolevSummary.at("available") == true);
+    assert(dolevSummary.at("avg_safety") == 66.67);
     algorithmInfo.success = false;
     assert(quantas::BoostMqReportWriter::makeAlgorithmSummary("CPAPeer", algorithmInfo)
                .at("available") == false);
