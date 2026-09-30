@@ -58,11 +58,16 @@ RuntimeExperimentConfig parseRuntimeExperiment(const nlohmann::json& config, siz
     out.rounds = requiredPosInt(experiment, "rounds", "rounds");
     out.tests = requiredPosInt(experiment, "tests", "tests");
     out.doneTimeoutMs = experiment.value("doneTimeoutMs", 30000);
+    out.windowMs = experiment.value("windowMs", 2000);
 
     if (out.initialPeerType.empty())
         throw std::runtime_error("error: topology.initialPeerType is empty");
     if (out.doneTimeoutMs <= 0)
         throw std::runtime_error("error: doneTimeoutMs must be > 0");
+    if (out.windowMs <= 0)
+        throw std::runtime_error("error: windowMs must be > 0");
+    if (out.doneTimeoutMs <= out.windowMs)
+        throw std::runtime_error("error: doneTimeoutMs must be > windowMs");
 
     return out;
 }

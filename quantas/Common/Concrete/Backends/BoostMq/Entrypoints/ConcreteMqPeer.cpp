@@ -417,7 +417,8 @@ int main(int argc, char** argv) {
             try {
                 /* Let this peer receive messages and perform its algorithm work for the configured
                  * number of local rounds. */
-                deliveryMs = runForDuration(localPeers, std::chrono::seconds(2), coordinator);
+                deliveryMs = runForDuration(localPeers, std::chrono::milliseconds(exp.windowMs),
+                                            coordinator);
             } catch (...) {
                 /* If execution fails, save the metrics collected so far and pass the error to the
                  * main failure handler below. */

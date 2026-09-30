@@ -66,6 +66,7 @@ BoostMqReportWriter::makeBaseExperimentReport(size_t expIndex, const RuntimeExpe
     report["testCount"] = exp.tests;
 
     report["doneTimeoutMs"] = exp.doneTimeoutMs;
+    report["windowMs"] = exp.windowMs;
 
     report["boostMq"] = {{"controlQueueCapacity", queueConfig.controlQueueCapacity},
                          {"dataQueueCapacity", queueConfig.dataQueueCapacity},

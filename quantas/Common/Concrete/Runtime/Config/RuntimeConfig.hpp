@@ -15,6 +15,7 @@ struct RuntimeExperimentConfig {
     int rounds{0};
     int tests{1};
     int doneTimeoutMs{30000};
+    int windowMs{2000};
 };
 
 std::optional<nlohmann::json> loadRuntimeConfig(const std::string& jsonPath);

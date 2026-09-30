@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared runner for resumable CPA edge-remover experiment campaigns."""
+"""Shared runner for resumable CPA experiment campaigns on topologies_100."""
 
 import argparse
 import copy
@@ -23,15 +23,22 @@ def find_repo_root(start):
     """Find the repository without depending on this module's directory depth."""
     for directory in (start, *start.parents):
         if ((directory / "Makefile").is_file() and
-                (directory / "quantas/MTRCPeer/topologies").is_dir()):
+                (directory / "quantas/MTRCPeer").is_dir()):
             return directory
     raise RuntimeError(f"Cannot find the QUANTAS repository above {start}")
 
 
 REPO_ROOT = find_repo_root(Path(__file__).resolve().parent)
-TOPOLOGY_DIR = REPO_ROOT / "quantas/MTRCPeer/topologies"
+TOPOLOGY_DIR = REPO_ROOT / "quantas_mtrc-main/Quantas/quantas/topologies_100"
+FAMILIES = ("edge_remover", "erdos_renyi", "random_regular")
 ABSTRACT_ROOT = REPO_ROOT / "quantas_mtrc-main/Quantas"
 LAUNCHER = Path("quantas/Common/Concrete/Backends/BoostMq/Entrypoints/runBoostMq.sh")
+# Concrete settings applied to every CPA and Dolev experiment (see experiments/concrete-settings.md).
+CONCRETE_SETTINGS = {
+    "boostMq": {"dataQueueCapacity": 10000},
+    "windowMs": 2000,
+    "doneTimeoutMs": 30000,
+}
 QUEUE_NAME = re.compile(r"(?:mq_barrier|mq_done|peer_[0-9]+_(?:control|data))")
 
 ABSTRACT_METRICS = (
@@ -86,8 +93,8 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
 
-def input_paths(k, max_t):
-    paths = [TOPOLOGY_DIR / f"cpa_edge_remover_n100_k{k}_t{t}.json"
+def input_paths(family, k, max_t):
+    paths = [TOPOLOGY_DIR / f"cpa_{family}_n100_k{k}_t{t}.json"
              for t in range(1, max_t + 1)]
     for path in paths:
         if not path.is_file():
@@ -121,13 +128,15 @@ def effective_input(original, index, backend):
     ]
     experiment = config["experiments"][index]
     config["experiments"] = [experiment]
+    if backend == "concrete":
+        experiment.update(copy.deepcopy(CONCRETE_SETTINGS))
     experiment["logFile"] = (
         "abstract.json" if backend == "abstract" else Path(experiment["logFile"]).name
     )
     return config
 
 
-def experiment_metadata(path, index, experiment, backend, k):
+def experiment_metadata(path, index, experiment, backend, family, k):
     parameters = experiment["parameters"]
     network = re.search(r"_(dolev|both)_network(\d+)$", Path(experiment["logFile"]).stem)
     if network is None:
@@ -141,7 +150,7 @@ def experiment_metadata(path, index, experiment, backend, k):
         "input_file": path.name,
         "experiment_index": index,
         "backend": backend,
-        "family": "edge_remover",
+        "family": family,
         "peer_count": experiment["topology"]["initialPeers"],
         "k": k,
         "byzantine_count": len(parameters["byzantines"]),
@@ -373,14 +382,14 @@ def execute_experiment(backend, path, original, index, base, directory, binaries
         raise ValueError(f"Experiment incomplete; saved available data. See {attempt}")
 
 
-def run(backend, k, max_t, limit_experiments, campaign_dir, csv_path, abstract_root):
-    paths = input_paths(k, max_t)
+def run(backend, family, k, max_t, limit_experiments, campaign_dir, csv_path, abstract_root):
+    paths = input_paths(family, k, max_t)
     root = abstract_root if backend == "abstract" else REPO_ROOT
     identity = source_identity(root)
     originals = {path: read_json(path) for path in paths}
     jobs = []
     for path, original in originals.items():
-        if original.get("algorithms") != ["MTRCPeer/CPAPeer/CPAPeer.cpp"]:
+        if original.get("algorithms") not in (["CPAPeer/CPAPeer.cpp"], ["MTRCPeer/CPAPeer/CPAPeer.cpp"]):
             raise ValueError(f"Expected CPA-only input: {path}")
         if not original.get("experiments"):
             raise ValueError(f"No experiments in {path}")
@@ -388,12 +397,12 @@ def run(backend, k, max_t, limit_experiments, campaign_dir, csv_path, abstract_r
             jobs.append((
                 path,
                 index,
-                experiment_metadata(path, index, experiment, backend, k),
+                experiment_metadata(path, index, experiment, backend, family, k),
             ))
 
     campaign_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = campaign_dir / "manifest.json"
-    selection = {"family": "edge_remover", "n": 100, "k": k}
+    selection = {"family": family, "n": 100, "k": k}
     manifest = read_json(manifest_path) if manifest_path.exists() else {
         "version": 1,
         "selection": selection,
@@ -468,7 +477,7 @@ def interrupt_run(signum, frame):
     raise KeyboardInterrupt
 
 
-def run_campaign(backend, k, max_t, script_file, argv=None):
+def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover", csv_path=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--limit-experiments",
@@ -477,8 +486,8 @@ def run_campaign(backend, k, max_t, script_file, argv=None):
     )
     parser.add_argument("--abstract-root", type=Path, default=ABSTRACT_ROOT)
     args = parser.parse_args(argv)
-    csv_path = Path(script_file).resolve().with_suffix(".csv")
-    campaign_dir = REPO_ROOT / "Results/run_experiments/edge_remover" / f"k{k}"
+    csv_path = Path(csv_path or Path(script_file).resolve().with_suffix(".csv"))
+    campaign_dir = REPO_ROOT / "Results/run_experiments/topologies_100" / family / f"k{k}"
     lock_path = REPO_ROOT / "Results/.edge-remover-runner.lock"
     lock_path.parent.mkdir(exist_ok=True)
     with lock_path.open("a") as lock:
@@ -494,6 +503,7 @@ def run_campaign(backend, k, max_t, script_file, argv=None):
         try:
             run(
                 backend,
+                family,
                 k,
                 max_t,
                 args.limit_experiments,

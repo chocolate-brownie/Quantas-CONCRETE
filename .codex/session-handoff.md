@@ -381,3 +381,9 @@
 - `runForDuration` keeps draining queues after delivery until STOP or deadline.
 - Moved CPA edge-remover runners, CSVs, and figures to `experiments/CPA/edge_remover/`; added `experiments/Dolev/timeout_sweep.py`.
 - Open: Concrete Dolev still needs larger `dataQueueCapacity` and a fix for the `k_disjoint` CPU stall; CPA edge-remover results use the old buggy inputs and must be rerun on `topologies_100`. No build/tests run at commit time.
+
+## 2026-09-30 CEST
+- Added JSON `windowMs` (default 2000, must be < `doneTimeoutMs`) replacing the hardcoded 2 s peer window; reported in `leader_report.json`.
+- Runner now uses `topologies_100`, all three families, and injects `dataQueueCapacity` 10000 / `windowMs` / `doneTimeoutMs`; new entry `experiments/CPA/run_concrete_campaign.py`. CPA pilot matched Abstract (1,298 messages).
+- Explained Concrete Dolev's 3–5× message excess (batching before the delivery check); recorded in `experiments/concrete-settings.md`. Tests passed: mq_report, mq_runtime_config, mq_queue_config, init_parameters.
+- Open: heavy k=7 Dolev run to decide the `k_disjoint` fix and window size; Dolev support in the runner.
