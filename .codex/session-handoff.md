@@ -402,3 +402,7 @@
 ## 2026-09-30 CEST (Figures 2/3 campaign done)
 - Concrete campaign `--k 7 --pair 5,1 --pair 1,5` finished: CPA 1,560/1,560; Dolev 1,549/1,560 (11 failures, all (5,1), t=3–5, 120 s done timeout = k_disjoint stall). CSVs in `experiments/{CPA,Dolev}/csv/`.
 - Next: reproduce Figures 2 and 3 (Abstract vs Concrete) using Lorenzo's `results_evaluation/plots_*.py` style.
+
+## 2026-09-30 CEST (figures)
+- Added `experiments/figures/figures_2_3.py` (Lorenzo's plots_2 style): option1 (paper layout per backend), option2 (Abstract solid vs Concrete dashed), individual/ (16 per-panel graphs). Failed Concrete tests excluded from means; delivery not overlaid (rounds vs ms).
+- Abstract redraw matches the paper's data; found that the paper's Dolev row colours don't match its legend (colour order follows JSON order per algorithm).
