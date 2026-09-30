@@ -1,7 +1,7 @@
 # Concrete settings for the CPA and Dolev campaigns
 
 The Concrete runs apply the same settings to every CPA and Dolev experiment, so the two algorithms run under one system.
-`experiments/CPA/edge_remover/campaign_runner.py` (`CONCRETE_SETTINGS`) adds them to the copy of each input it runs.
+`experiments/campaign_runner.py` (`CONCRETE_SETTINGS`) adds them to the copy of each input it runs.
 Lorenzo's `topologies_100` files are not modified.
 
 | Setting | Value | Default | Why |

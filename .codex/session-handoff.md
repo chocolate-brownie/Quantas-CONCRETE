@@ -393,3 +393,8 @@
 - Settings raised to queue 20000 and `doneTimeoutMs` 120000; failed experiments are recorded and skipped on resume (only interrupted ones retried). Verified with a simulated failure/resume.
 - Profiled heavy Dolev stalls: `k_disjoint` on the forged value (answer "no") took up to 231 s; reported as a Concrete limitation (see `experiments/concrete-settings.md`). Pilots: CPA 1,298 msgs (= Abstract); Dolev 2 experiments 100% liveness/safety.
 - Next: run the full Concrete campaigns.
+
+## 2026-09-30 CEST (campaign prep)
+- Added `--pair TS,TL` filter; Figures 2/3 subset = `--k 7 --pair 5,1 --pair 1,5` (3,120 experiments, verified count).
+- Archived old data: `experiments/archive/` (old CPA edge-remover campaign, pilots) and `Results/_archive_2026-09-30/` (raw, 22 GB); runner moved to `experiments/campaign_runner.py`.
+- Verified real Ctrl+C + resume (CPA edge remover k=3: 20 rows, no duplicates, no leftover queues). Added `experiments/STATUS.md` (problems, findings, solutions, run commands).

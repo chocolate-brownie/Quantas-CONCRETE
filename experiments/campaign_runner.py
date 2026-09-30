@@ -388,7 +388,8 @@ def execute_experiment(backend, path, original, index, base, directory, binaries
         raise ExperimentFailed(f"Experiment incomplete; saved available data. See {attempt}")
 
 
-def run(backend, algorithm, family, k, max_t, limit_experiments, campaign_dir, csv_path, abstract_root):
+def run(backend, algorithm, family, k, max_t, limit_experiments, campaign_dir, csv_path, abstract_root,
+        pairs=None):
     paths = input_paths(algorithm, family, k, max_t)
     root = abstract_root if backend == "abstract" else REPO_ROOT
     identity = source_identity(root)
@@ -401,6 +402,9 @@ def run(backend, algorithm, family, k, max_t, limit_experiments, campaign_dir, c
         if not original.get("experiments"):
             raise ValueError(f"No experiments in {path}")
         for index, experiment in enumerate(original["experiments"]):
+            parameters = experiment["parameters"]
+            if pairs and (parameters["ts"], parameters["tl"]) not in pairs:
+                continue
             jobs.append((
                 path,
                 index,
@@ -489,6 +493,11 @@ def positive_int(value):
     return number
 
 
+def threshold_pair(value):
+    ts, tl = (positive_int(part) for part in value.split(","))
+    return ts, tl
+
+
 def interrupt_run(signum, frame):
     raise KeyboardInterrupt
 
@@ -502,6 +511,12 @@ def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover
         help="Run only this many unfinished experiments (useful for a pilot run)",
     )
     parser.add_argument("--abstract-root", type=Path, default=ABSTRACT_ROOT)
+    parser.add_argument(
+        "--pair",
+        type=threshold_pair,
+        action="append",
+        help="Run only experiments with this TS,TL threshold pair (repeatable, e.g. --pair 5,1)",
+    )
     args = parser.parse_args(argv)
     csv_path = Path(csv_path or Path(script_file).resolve().with_suffix(".csv"))
     campaign_dir = REPO_ROOT / "Results/run_experiments/topologies_100" / algorithm / family / f"k{k}"
@@ -528,6 +543,7 @@ def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover
                 campaign_dir,
                 csv_path,
                 args.abstract_root.resolve(),
+                args.pair,
             )
         except KeyboardInterrupt:
             print(

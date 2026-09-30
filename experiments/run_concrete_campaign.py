@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE / "CPA" / "edge_remover"))
+sys.path.insert(0, str(HERE))
 
 from campaign_runner import ALGORITHMS, FAMILIES, run_campaign
 
@@ -28,7 +28,7 @@ def main():
     args, rest = parser.parse_known_args()
     for algorithm in args.algorithm or ("cpa", "dolev"):
         csv_dir = CSV_DIRS[algorithm]
-        csv_dir.mkdir(exist_ok=True)
+        csv_dir.mkdir(parents=True, exist_ok=True)
         for k in args.k or (3, 5, 7):
             for family in args.family or FAMILIES:
                 print(f"=== Concrete {algorithm}: {family}, k={k} ===", flush=True)

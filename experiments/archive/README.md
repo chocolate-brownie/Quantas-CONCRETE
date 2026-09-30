@@ -1,0 +1,17 @@
+# Archived experiment data (kept for reference, not for new runs)
+
+Archived on 2026-09-30, before the Concrete campaigns on Lorenzo's `topologies_100` inputs.
+
+| Folder | What |
+|---|---|
+| `cpa_edge_remover_old_inputs/` | Finished CPA edge-remover campaign (Abstract and Concrete, k = 3, 5, 7; 10 tests per experiment). It used the **old, buggy** `quantas/MTRCPeer/topologies/` inputs, whose `both` networks were Dolev-trimmed. It contains the CSVs, `combined_figures.py` and its figures (still runnable in place), and the per-k runner scripts. The runner scripts no longer work: they imported the shared runner, which moved to `experiments/campaign_runner.py`. |
+| `pilots_2026-09-30/` | Pilot rows from testing the new runner (CPA k = 3 and 7, Dolev k = 3), made with earlier settings. |
+
+Raw outputs (git-ignored) were moved to `Results/_archive_2026-09-30/`:
+- `run_experiments/edge_remover/`: raw files of the old CPA campaign.
+- `cpa_edge_remover_n100_k7/`: an older CPA k = 7 run.
+- `01EXP_concrete_*`: smoke tests.
+- `dolev_timeout_sweep*`: the send-timeout sweep.
+- `run_experiments/topologies_100/`: the pilots.
+
+New campaign data goes to `experiments/{CPA,Dolev}/csv/` and `Results/run_experiments/topologies_100/`.
