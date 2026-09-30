@@ -387,3 +387,9 @@
 - Runner now uses `topologies_100`, all three families, and injects `dataQueueCapacity` 10000 / `windowMs` / `doneTimeoutMs`; new entry `experiments/CPA/run_concrete_campaign.py`. CPA pilot matched Abstract (1,298 messages).
 - Explained Concrete Dolev's 3–5× message excess (batching before the delivery check); recorded in `experiments/concrete-settings.md`. Tests passed: mq_report, mq_runtime_config, mq_queue_config, init_parameters.
 - Open: heavy k=7 Dolev run to decide the `k_disjoint` fix and window size; Dolev support in the runner.
+
+## 2026-09-30 CEST (later)
+- Runner supports Dolev (`experiments/run_concrete_campaign.py --algorithm cpa|dolev`); CSVs in `experiments/{CPA,Dolev}/csv/`; results in `Results/run_experiments/topologies_100/<algorithm>/<family>/k<k>`.
+- Settings raised to queue 20000 and `doneTimeoutMs` 120000; failed experiments are recorded and skipped on resume (only interrupted ones retried). Verified with a simulated failure/resume.
+- Profiled heavy Dolev stalls: `k_disjoint` on the forged value (answer "no") took up to 231 s; reported as a Concrete limitation (see `experiments/concrete-settings.md`). Pilots: CPA 1,298 msgs (= Abstract); Dolev 2 experiments 100% liveness/safety.
+- Next: run the full Concrete campaigns.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared runner for resumable CPA experiment campaigns on topologies_100."""
+"""Shared runner for resumable CPA and Dolev experiment campaigns on topologies_100."""
 
 import argparse
 import copy
@@ -31,13 +31,15 @@ def find_repo_root(start):
 REPO_ROOT = find_repo_root(Path(__file__).resolve().parent)
 TOPOLOGY_DIR = REPO_ROOT / "quantas_mtrc-main/Quantas/quantas/topologies_100"
 FAMILIES = ("edge_remover", "erdos_renyi", "random_regular")
+# Input-file prefix -> registered peer type.
+ALGORITHMS = {"cpa": "CPAPeer", "dolev": "DolevPeer"}
 ABSTRACT_ROOT = REPO_ROOT / "quantas_mtrc-main/Quantas"
 LAUNCHER = Path("quantas/Common/Concrete/Backends/BoostMq/Entrypoints/runBoostMq.sh")
 # Concrete settings applied to every CPA and Dolev experiment (see experiments/concrete-settings.md).
 CONCRETE_SETTINGS = {
-    "boostMq": {"dataQueueCapacity": 10000},
+    "boostMq": {"dataQueueCapacity": 20000},
     "windowMs": 2000,
-    "doneTimeoutMs": 30000,
+    "doneTimeoutMs": 120000,
 }
 QUEUE_NAME = re.compile(r"(?:mq_barrier|mq_done|peer_[0-9]+_(?:control|data))")
 
@@ -78,6 +80,10 @@ METADATA_COLUMNS = (
 )
 
 
+class ExperimentFailed(ValueError):
+    """An experiment ran but did not produce a complete result."""
+
+
 def read_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -93,8 +99,8 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
 
-def input_paths(family, k, max_t):
-    paths = [TOPOLOGY_DIR / f"cpa_{family}_n100_k{k}_t{t}.json"
+def input_paths(algorithm, family, k, max_t):
+    paths = [TOPOLOGY_DIR / f"{algorithm}_{family}_n100_k{k}_t{t}.json"
              for t in range(1, max_t + 1)]
     for path in paths:
         if not path.is_file():
@@ -121,12 +127,11 @@ def source_identity(root):
 
 def effective_input(original, index, backend):
     config = copy.deepcopy(original)
-    config["algorithms"] = [
-        "CPAPeer/CPAPeer.cpp"
-        if backend == "abstract"
-        else "MTRCPeer/CPAPeer/CPAPeer.cpp"
-    ]
     experiment = config["experiments"][index]
+    peer = experiment["topology"]["initialPeerType"]
+    config["algorithms"] = [
+        f"{peer}/{peer}.cpp" if backend == "abstract" else f"MTRCPeer/{peer}/{peer}.cpp"
+    ]
     config["experiments"] = [experiment]
     if backend == "concrete":
         experiment.update(copy.deepcopy(CONCRETE_SETTINGS))
@@ -136,13 +141,13 @@ def effective_input(original, index, backend):
     return config
 
 
-def experiment_metadata(path, index, experiment, backend, family, k):
+def experiment_metadata(path, index, experiment, backend, algorithm, family, k):
     parameters = experiment["parameters"]
     network = re.search(r"_(dolev|both)_network(\d+)$", Path(experiment["logFile"]).stem)
     if network is None:
         raise ValueError(f"Cannot identify network group and ID: {experiment['logFile']}")
-    if experiment["topology"]["initialPeerType"] != "CPAPeer":
-        raise ValueError(f"Expected CPAPeer in {path}, experiment {index}")
+    if experiment["topology"]["initialPeerType"] != ALGORITHMS[algorithm]:
+        raise ValueError(f"Expected {ALGORITHMS[algorithm]} in {path}, experiment {index}")
     for field in ("tests", "rounds"):
         if type(experiment[field]) is not int or experiment[field] <= 0:
             raise ValueError(f"Expected positive {field} in {path}, experiment {index}")
@@ -213,10 +218,10 @@ def collect_rows(report_path, backend, expected_tests, base, run_error=""):
             if backend == "abstract":
                 results = entry["results"]
                 if not isinstance(results, list) or len(results) != 1:
-                    raise ValueError("Expected exactly one final CPA result")
+                    raise ValueError("Expected exactly one final result")
                 summary = results[0]
                 if not isinstance(summary, dict):
-                    raise ValueError("Expected CPA result object")
+                    raise ValueError("Expected result object")
                 for name in metrics:
                     row[name] = numeric_metric(summary, name)
             else:
@@ -372,6 +377,7 @@ def execute_experiment(backend, path, original, index, base, directory, binaries
         "attempt": str(attempt),
         "started_at": started,
         "duration_seconds": time.time() - started,
+        "interrupted": interrupted,
     }
     write_json(attempt / "result.json", result)
     write_json(directory / "result.json", result)
@@ -379,30 +385,31 @@ def execute_experiment(backend, path, original, index, base, directory, binaries
     if interrupted:
         raise KeyboardInterrupt
     if not complete:
-        raise ValueError(f"Experiment incomplete; saved available data. See {attempt}")
+        raise ExperimentFailed(f"Experiment incomplete; saved available data. See {attempt}")
 
 
-def run(backend, family, k, max_t, limit_experiments, campaign_dir, csv_path, abstract_root):
-    paths = input_paths(family, k, max_t)
+def run(backend, algorithm, family, k, max_t, limit_experiments, campaign_dir, csv_path, abstract_root):
+    paths = input_paths(algorithm, family, k, max_t)
     root = abstract_root if backend == "abstract" else REPO_ROOT
     identity = source_identity(root)
     originals = {path: read_json(path) for path in paths}
     jobs = []
     for path, original in originals.items():
-        if original.get("algorithms") not in (["CPAPeer/CPAPeer.cpp"], ["MTRCPeer/CPAPeer/CPAPeer.cpp"]):
-            raise ValueError(f"Expected CPA-only input: {path}")
+        peer = ALGORITHMS[algorithm]
+        if original.get("algorithms") not in ([f"{peer}/{peer}.cpp"], [f"MTRCPeer/{peer}/{peer}.cpp"]):
+            raise ValueError(f"Expected {peer}-only input: {path}")
         if not original.get("experiments"):
             raise ValueError(f"No experiments in {path}")
         for index, experiment in enumerate(original["experiments"]):
             jobs.append((
                 path,
                 index,
-                experiment_metadata(path, index, experiment, backend, family, k),
+                experiment_metadata(path, index, experiment, backend, algorithm, family, k),
             ))
 
     campaign_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = campaign_dir / "manifest.json"
-    selection = {"family": family, "n": 100, "k": k}
+    selection = {"algorithm": algorithm, "family": family, "n": 100, "k": k}
     manifest = read_json(manifest_path) if manifest_path.exists() else {
         "version": 1,
         "selection": selection,
@@ -428,8 +435,11 @@ def run(backend, family, k, max_t, limit_experiments, campaign_dir, csv_path, ab
     for path, index, base in jobs:
         directory = backend_dir / path.stem / f"experiment_{index:03d}"
         checkpoint = directory / "result.json"
-        if checkpoint.exists() and read_json(checkpoint).get("complete") is True:
-            continue
+        # Skip finished experiments, including recorded failures; retry only interrupted ones.
+        if checkpoint.exists():
+            previous_result = read_json(checkpoint)
+            if previous_result.get("complete") is True or previous_result.get("interrupted") is False:
+                continue
         pending.append((path, index, base, directory))
     export_csv(campaign_dir, backend, csv_path)
     print(f"{len(jobs) - len(pending)} completed; {len(pending)} experiments remaining.", flush=True)
@@ -447,23 +457,29 @@ def run(backend, family, k, max_t, limit_experiments, campaign_dir, csv_path, ab
         backend_dir,
         effective_input(originals[first_path], first_index, backend),
     )
+    failures = 0
     for path, index, base, directory in pending:
         directory.mkdir(parents=True, exist_ok=True)
         original_path = directory.parent / "original-input.json"
         if not original_path.exists():
             write_json(original_path, originals[path])
-        execute_experiment(
-            backend,
-            path,
-            originals[path],
-            index,
-            base,
-            directory,
-            binaries,
-            campaign_dir,
-            csv_path,
-        )
-    print(f"Saved {csv_path}", flush=True)
+        try:
+            execute_experiment(
+                backend,
+                path,
+                originals[path],
+                index,
+                base,
+                directory,
+                binaries,
+                campaign_dir,
+                csv_path,
+            )
+        except ExperimentFailed as error:
+            # A failed test is a result (e.g. a Dolev stall past doneTimeoutMs); record it and go on.
+            failures += 1
+            print(f"Failed (recorded, continuing): {error}", flush=True)
+    print(f"Saved {csv_path} ({failures} failed experiments)", flush=True)
 
 
 def positive_int(value):
@@ -477,7 +493,8 @@ def interrupt_run(signum, frame):
     raise KeyboardInterrupt
 
 
-def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover", csv_path=None):
+def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover", csv_path=None,
+                 algorithm="cpa"):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--limit-experiments",
@@ -487,7 +504,7 @@ def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover
     parser.add_argument("--abstract-root", type=Path, default=ABSTRACT_ROOT)
     args = parser.parse_args(argv)
     csv_path = Path(csv_path or Path(script_file).resolve().with_suffix(".csv"))
-    campaign_dir = REPO_ROOT / "Results/run_experiments/topologies_100" / family / f"k{k}"
+    campaign_dir = REPO_ROOT / "Results/run_experiments/topologies_100" / algorithm / family / f"k{k}"
     lock_path = REPO_ROOT / "Results/.edge-remover-runner.lock"
     lock_path.parent.mkdir(exist_ok=True)
     with lock_path.open("a") as lock:
@@ -503,6 +520,7 @@ def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover
         try:
             run(
                 backend,
+                algorithm,
                 family,
                 k,
                 max_t,
