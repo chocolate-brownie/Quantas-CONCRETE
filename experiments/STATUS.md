@@ -2,7 +2,7 @@
 
 **Goal:** reproduce the paper's figures (MT-CPA and MT-Dolev) on Concrete QUANTAS with the same setup as Abstract, and compare the two.
 
-**Current step:** running the Concrete campaign for Figures 2 and 3 (k=7, (t_s, t_l) = (5, 1) and (1, 5); 3,120 experiments). Abstract results already exist (Lorenzo's `results_100`), so Abstract doesn't need rerunning.
+**Current step:** the Concrete campaign for Figures 2 and 3 is **finished** (2026-09-30; k=7, (t_s, t_l) = (5, 1) and (1, 5); 3,120 experiments). CPA: 1,560 of 1,560 succeeded. Dolev: 1,549 of 1,560; 11 failures (0.7%), all (5, 1), t = 3–5, all at the 120 s done timeout (§5). Next: reproduce Figures 2 and 3. Abstract results already exist (Lorenzo's `results_100`), so Abstract doesn't need rerunning.
 
 ## How to run
 
@@ -82,6 +82,6 @@ Full details: `experiments/concrete-settings.md`.
 
 ## Still open
 - **Safety at larger t:** an old smoke test hinted that Concrete Dolev has lower safety at t=5. The campaign will show whether that holds.
-- **How often stalls happen across the whole campaign:** unknown until the run finishes. Look at the `failed` rows in the Dolev CSVs.
+- **How often stalls happen:** answered for Figures 2 and 3. 11 of 1,560 Dolev experiments (0.7%) failed, all (5, 1) with t = 3–5. The appendix run is not done yet.
 - **Why the heaviest k=7 case sends fewer messages in Concrete:** not investigated yet.
 - **Questions for Lorenzo:** the stop-after-delivery change (§6), plus the existing list in `CLAUDE.md` §7.

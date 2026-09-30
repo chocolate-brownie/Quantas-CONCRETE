@@ -398,3 +398,7 @@
 - Added `--pair TS,TL` filter; Figures 2/3 subset = `--k 7 --pair 5,1 --pair 1,5` (3,120 experiments, verified count).
 - Archived old data: `experiments/archive/` (old CPA edge-remover campaign, pilots) and `Results/_archive_2026-09-30/` (raw, 22 GB); runner moved to `experiments/campaign_runner.py`.
 - Verified real Ctrl+C + resume (CPA edge remover k=3: 20 rows, no duplicates, no leftover queues). Added `experiments/STATUS.md` (problems, findings, solutions, run commands).
+
+## 2026-09-30 CEST (Figures 2/3 campaign done)
+- Concrete campaign `--k 7 --pair 5,1 --pair 1,5` finished: CPA 1,560/1,560; Dolev 1,549/1,560 (11 failures, all (5,1), t=3–5, 120 s done timeout = k_disjoint stall). CSVs in `experiments/{CPA,Dolev}/csv/`.
+- Next: reproduce Figures 2 and 3 (Abstract vs Concrete) using Lorenzo's `results_evaluation/plots_*.py` style.
