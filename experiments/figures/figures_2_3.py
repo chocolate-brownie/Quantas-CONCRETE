@@ -160,6 +160,8 @@ def option2(number, ts, tl, abstract, concrete):
     handles += [Line2D([], [], color="black"), Line2D([], [], color="black", linestyle="--")]
     labels += ["Abstract", "Concrete"]
     legend(fig, handles, labels)
+    fig.suptitle(f"Figure {number}: (t_s, t_l) = ({ts}, {tl}), Abstract vs Concrete", fontsize=FT + 4,
+                 y=1.1)
     fig.subplots_adjust(top=0.74, wspace=0.45, hspace=0.65)
     save(fig, HERE / "option2" / f"figure{number}_combined")
 
@@ -204,12 +206,34 @@ def individual(number, ts, tl, abstract, concrete):
         save(fig, out / f"{alg}_delivery")
 
 
+def delivery_combined(abstract, concrete):
+    """Delivery time for both figures in one figure: rows = algorithms, columns = figure x backend."""
+    fig, axes = plt.subplots(2, 4, figsize=(W * 4, H * 2))
+    for row, alg in enumerate(ALGS):
+        col = 0
+        for number, (ts, tl) in FIGURES.items():
+            for data, backend, ylabel, linestyle in (
+                    (abstract, "Abstract", "Avg Delivery \n (Rounds)", "-"),
+                    (concrete, "Concrete", "Avg Delivery \n (ms)", "--")):
+                ax = axes[row, col]
+                plot_lines(ax, means(data, alg, ts, tl), "delivery", linestyle)
+                style(ax, f"Fig {number}, {backend}", alg, ylabel)
+                ax.set_ylim(bottom=0)
+                col += 1
+    comparison_legend(fig, ncol=4)
+    fig.suptitle("Delivery time, Figures 2 and 3 (Abstract in rounds, Concrete in ms)", fontsize=FT + 4,
+                 y=1.08)
+    fig.subplots_adjust(top=0.78, wspace=0.45, hspace=0.6)
+    save(fig, HERE / "option2" / "delivery_combined")
+
+
 def main():
     abstract, concrete = load_abstract(), load_concrete()
     for number, (ts, tl) in FIGURES.items():
         option1(number, ts, tl, abstract, concrete)
         option2(number, ts, tl, abstract, concrete)
         individual(number, ts, tl, abstract, concrete)
+    delivery_combined(abstract, concrete)
     print(f"Saved figures to {HERE}")
 
 

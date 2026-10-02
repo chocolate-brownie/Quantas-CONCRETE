@@ -3,7 +3,10 @@ A Quantitative User-friendly Adaptive Networked Things Abstract Simulator.
 
 QUANTAS is an abstract, round-based simulator for studying distributed algorithms without committing to a specific network stack or operating system. The platform lets you compose experiments by mixing algorithm implementations, network topologies, and stochastic message-delay/disruption models. Recent updates add first-class support for modelling Byzantine behaviour, allowing you to attach reusable fault strategies to subsets of simulated peers.
 
-<img src="docs/abstract%20sim%20draw.pptx.jpg" alt="System Diagram" style="zoom: 33%;" />
+The same algorithm code can run on two backends:
+
+- **Abstract** (the original simulator): one process, synchronous rounds, simulated message delays.
+- **Concrete** (BoostMq): every peer is a real operating-system process, and peers exchange real messages through shared-memory message queues. See [Concrete backend](#concrete-backend-boostmq).
 
 ## Build Dependencies
 
@@ -42,16 +45,153 @@ Clone the repository, pick the algorithm/input configuration you want to exercis
    ```
    Use `make debug` for an unoptimised build with debug symbols, or `make run_memory` / `make run_debug` for valgrind and gdb helpers.
 
-## Running the ConcreteMQ / BoostMq Backend
+## Concrete backend (BoostMq)
 
-ConcreteMQ is an experimental multi-process backend that uses Boost message queues for local IPC. The implementation currently lives in `quantas/Common/Concrete/Backends/BoostMq/`. It is useful for research runs that need one OS process per peer, but it is not full Abstract simulator parity yet.
+The Concrete backend runs an experiment with **one operating-system process per peer** on a single Linux machine. Peers exchange real messages through [Boost.Interprocess](https://www.boost.org/doc/libs/release/doc/html/interprocess.html) message queues stored in `/dev/shm`. It answers a question the Abstract simulator cannot: how does an algorithm behave with real processes, real scheduling and real elapsed time?
 
-See the [BoostMQ backend guide](quantas/Common/Concrete/Backends/BoostMq/README.md) for build commands, usage, output metrics, and crash recovery before using it for experiments.
+The code lives in `quantas/Common/Concrete/`:
 
-For CPA baseline measurements using Lorenzo's original Abstract repository, see
-the [Abstract CPA run and CSV guide](docs/cpa-abstract-baseline.md).
-To collect matching BoostMQ data from that saved baseline, see the
-[BoostMQ baseline and comparison guide](docs/cpa-boostmq-baseline.md).
+| Path | Role |
+|---|---|
+| `Backends/BoostMq/Entrypoints/ConcreteMqLeader.cpp` | The **leader** (coordinator): validates the input, plans the topology, creates the queues, starts the peers, waits for them, and writes the report. |
+| `Backends/BoostMq/Entrypoints/ConcreteMqPeer.cpp` | The **peer** process: builds one algorithm peer and runs its receive/compute loop. |
+| `Backends/BoostMq/Entrypoints/runBoostMq.sh` | Launcher: starts the leader and one peer process per peer, and cleans up the queues afterwards. |
+| `Backends/BoostMq/Transport/` | `NetworkInterfaceConcreteMQ`: sends and receives algorithm messages through the queues. |
+| `Backends/BoostMq/Control/` | Queue settings (`QueueConfig`) and leader/peer control messages (`ProcessCoordinatorMQ`). |
+| `Backends/BoostMq/Logging/` | Writes `leader_report.json`. |
+| `Runtime/` | Backend-independent configuration, topology planning and metrics. |
+
+### How a Concrete test runs
+
+1. **Setup.** The leader reads the experiment, plans the topology, and creates two queues per peer in `/dev/shm`: a control queue and a data queue.
+2. **Start barrier.** Every peer process reports that it is ready. When all peers are ready, the leader sends each one its neighbours and then a start signal.
+3. **Run.** Each peer loops until a stop message arrives or its time window (`windowMs`) runs out. One loop iteration: read all waiting messages, run the algorithm's `performComputation()` once, then sleep until the next 10 ms poll.
+4. **Stop.** For `CPAPeer` and `DolevPeer`, peers report when they deliver, and the leader broadcasts a stop message as soon as every correct peer has delivered. Other algorithms run for the full window.
+5. **Report.** Each peer writes its own report; the leader collects them into `leader_report.json` and removes the queues.
+
+### Abstract vs Concrete
+
+| | Abstract | Concrete |
+|---|---|---|
+| Peers | C++ objects in one process | one OS process each |
+| Time | synchronous rounds (`rounds`) | real elapsed time (`windowMs`, 10 ms polling) |
+| Message delays | simulated by `distribution` | real queue and scheduling delays; `distribution` is not used |
+| Computation cost | free (inside one round) | real CPU time |
+| Delivery time | rounds | milliseconds |
+| Output | `logFile` | `Results/<NN>EXP_<name>/leader_report.json` plus one report per peer |
+
+Because time and delays differ, compare **trends** between the backends, not raw delivery times.
+
+### Requirements
+
+Linux with `g++` and Boost (Boost.Serialization):
+
+```sh
+sudo apt install libboost-serialization-dev   # Debian/Ubuntu
+sudo dnf install boost-devel                  # Fedora
+make check_mq_deps                            # verify the setup
+```
+
+### Running an experiment
+
+The input file is the same JSON format as for Abstract (see [Simulation Input Reference](#simulation-input-reference)). Use `"algorithms"` paths relative to `quantas/`.
+
+```sh
+make mq INPUTFILE=path/to/input.json         # build release binaries, clean old queues, run
+make mq_debug INPUTFILE=path/to/input.json   # the same with debug binaries
+```
+
+Or build once and launch manually:
+
+```sh
+make -B mq_release INPUTFILE=path/to/input.json
+bash quantas/Common/Concrete/Backends/BoostMq/Entrypoints/runBoostMq.sh \
+    path/to/input.json ./quantas_mq_leader.exe ./quantas_mq_peer.exe /dev/shm
+```
+
+- The peer binary only contains the algorithms listed in the input's `"algorithms"`, so **rebuild when you switch algorithm** (`make -B ...`).
+- Experiments in one file run one after another; every experiment starts 1 leader and `initialPeers` peer processes.
+- Results go to `Results/<NN>EXP_<name>/`, where `<NN>` is the experiment's position in the file (`01`, `02`, …) and `<name>` is `logFile` without its extension: `leader_report.json` (per-test results under `tests[]`, algorithm metrics under `tests[].algoReliability`, transport counters under `tests[].transportReliability`) and `peer_<id>_TEST<n>.json`.
+
+### Concrete settings (optional JSON keys)
+
+These keys go in an experiment object, next to `topology` and `parameters`. Abstract ignores them.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `windowMs` | 2000 | Longest time a peer runs in a test. Must be smaller than `doneTimeoutMs`. |
+| `doneTimeoutMs` | 30000 | How long the leader waits for every peer to report. A test that exceeds it is recorded as failed. |
+| `boostMq.dataQueueCapacity` | 1000 | Messages each peer's data queue can hold. Memory per queue ≈ capacity × `maxMessageSizeBytes`. |
+| `boostMq.maxMessageSizeBytes` | 4096 | Largest message, in bytes. |
+| `boostMq.dataSendTimeoutMs` | 10 | How long a send waits on a full queue before the test fails. |
+| `boostMq.controlSendTimeoutMs` | 5000 | The same for control messages. |
+| `boostMq.readyTimeoutMs` | 30000 | How long the leader waits for all peers to become ready. |
+
+Example:
+
+```json
+{
+  "topology": { "type": "complete", "initialPeers": 50, "initialPeerType": "CPAPeer" },
+  "parameters": { "sender": 0, "byzantines": [3], "ts": 1, "tl": 1 },
+  "windowMs": 2000,
+  "doneTimeoutMs": 120000,
+  "boostMq": { "dataQueueCapacity": 20000 },
+  "logFile": "cpa_example.json",
+  "tests": 1,
+  "rounds": 1000
+}
+```
+
+`/dev/shm` must have room for every queue: 100 peers × 20,000 messages × 4 KB ≈ 8 GB.
+
+### Writing an algorithm for both backends
+
+An algorithm written for Abstract runs on Concrete **without changes**: it registers with `PeerRegistry` as usual, and the Concrete peer process replaces its network interface with the queue-based one. Two optional `Peer` hooks add Concrete-specific behaviour:
+
+- `nlohmann::json collectAlgoMetrics() const`: per-peer metrics saved in the peer's report (and combined by the leader for CPA and Dolev).
+- `bool localProtocolCompleted() const`: return `true` once the peer has finished (for example delivered); the leader uses it for early stopping.
+
+Keep in mind:
+
+- Code runs in **real time**: expensive computation delays the peer and can exceed `doneTimeoutMs`.
+- A peer cannot read other peers' state: anything that scans all peers in Abstract (for example a global "everyone delivered" check) must be replaced, e.g. by the leader's stop message.
+
+### Housekeeping and troubleshooting
+
+```sh
+make mq_status    # list running leader/peer processes and queues in /dev/shm
+make mq_cleanup   # remove leftover queues (refuses while processes are running)
+```
+
+- Check `/dev/shm` is clean before a run; leftover queues from a crashed run block new runs.
+- A full data queue makes a send time out and the test fail: raise `boostMq.dataQueueCapacity`.
+- A test that hits `doneTimeoutMs` is recorded as failed in `leader_report.json`.
+
+### Tests
+
+```sh
+make test                    # all tests
+make mq_queue_config_test    # a single test (see the Makefile for the list)
+```
+
+## MT-CPA and MT-Dolev on Abstract and Concrete
+
+`quantas/MTRCPeer/` contains Concrete ports of MT-CPA and MT-Dolev from *Multi-Threshold Reliable Communication on Graph Networks*. `experiments/` runs the paper's experiments on Concrete and compares them with the paper's Abstract results.
+
+```sh
+# The paper's Figures 2 and 3 (k = 7, (ts, tl) = (5, 1) and (1, 5))
+.venv/bin/python experiments/run_concrete_campaign.py --k 7 --pair 5,1 --pair 1,5
+
+# Everything (k = 3, 5, 7 and all threshold pairs); finished experiments are skipped
+.venv/bin/python experiments/run_concrete_campaign.py
+```
+
+- Options: `--algorithm cpa|dolev`, `--family edge_remover|erdos_renyi|random_regular`, `--k 3|5|7`, `--pair TS,TL` (all repeatable).
+- Inputs come from Lorenzo's repository (`quantas_mtrc-main/Quantas/quantas/topologies_100/`); the input files are not modified.
+- Stop with Ctrl+C and rerun the same command to resume. Failed experiments are recorded and not retried.
+- CSVs: `experiments/{CPA,Dolev}/csv/concrete_<family>_k<k>.csv`. Raw data: `Results/run_experiments/topologies_100/`.
+- Figures: `.venv/bin/python experiments/figures/figures_2_3.py` (outputs in `experiments/figures/`).
+- Settings, findings and limitations: [`experiments/STATUS.md`](experiments/STATUS.md) and [`experiments/concrete-settings.md`](experiments/concrete-settings.md).
 
 ## Simulation Input Reference
 
@@ -170,99 +310,6 @@ Attach faults from your algorithm’s `initParameters`. For instance, `PBFTPeer`
 ## Logging and Metrics
 
 `LogWriter` aggregates per-test metrics into structured JSON records. Algorithms push values during execution (for example PBFT tracks throughput, latency, and faulty confirmations). Each experiment writes its metrics at the end of the run, either to stdout (`logFile = "cout"`) or to the named log file.
-
-## CPA Abstract and Concrete comparison
-
-Run the Python runner from this repository. It uses Python's standard library,
-`make`, `g++`, and the existing backend build dependencies. Abstract uses the
-Lorenzo checkout at `quantas_mtrc-main/Quantas` (override with `--abstract-root`);
-Concrete uses this repository's BoostMQ backend on Linux.
-
-Validate one experiment on each backend first:
-
-```bash
-python3 run_exp.py --backend abstract --t 1 --limit-experiments 1
-python3 run_exp.py --backend concrete --t 1 --limit-experiments 1
-```
-
-Then run all edge-remover inputs for 100 peers, k=7 and Byzantine counts 1–13:
-
-```bash
-python3 run_exp.py --backend abstract
-python3 run_exp.py --backend concrete
-```
-
-Run these commands sequentially. Each full backend batch contains 100 experiments
-per input, with ten repetitions per experiment: 13,000 repetitions per backend.
-The runner preserves the input's rounds (1,000), repetitions, thread count,
-parameters, distribution and topology. `--t 1` selects the entire t1 file;
-`--limit-experiments 1` restricts execution to one unfinished experiment.
-Other selections use `--family edge_remover|erdos_renyi|random_regular`, `--n`,
-and `--k 3|5|7`. Without `--t`, the range is 1 through 2k−1.
-
-Results default to `Results/cpa_edge_remover_n100_k7/` (override with
-`--output-dir`). Open `abstract.csv` and `concrete.csv` directly in Excel. Each
-row identifies the input, original experiment index, repetition, backend,
-Byzantine IDs/count, sender, threshold pair, network group/ID and topology hash.
-Indices are zero-based. The five metric columns retain the existing formulas:
-
-| Column | Meaning |
-| --- | --- |
-| `avgTermination` | Percentage of non-Byzantine peers that delivered |
-| `avgSafety` | Largest agreeing group among non-Byzantine delivered peers, as a percentage of those delivered peers |
-| `avgDeliveryRound` | Average delivery round across all delivered peers, including Byzantine peers |
-| `avgMessagesSent` | Total messages sent by all peers divided by the number of non-Byzantine peers |
-| `totalMessagesSent` | Total messages sent by all peers |
-
-Safety measures agreement, which does not necessarily mean delivery of the
-sender's value. Abstract rounds are simulation steps; Concrete rounds are local
-peer iterations. Equal round limits do not imply equal elapsed time or progress.
-Abstract applies its configured delay distribution; Concrete uses actual queue
-delivery and scheduling. Keep `(ts, tl)` and network groups (`dolev`, `both`)
-separate when aggregating. Both groups run CPA in this campaign.
-
-The backend directories preserve original/effective inputs, build logs and
-binaries, console logs, raw reports (including Concrete transport metrics), and
-attempt records. `manifest.json` records input hashes and backend source/compiler
-identities. Each CSV row links to its raw report; paths inside Concrete's report
-are relative to that attempt's working directory.
-
-Results are checkpointed after each experiment. Rerun the same command to skip
-completed experiments and retry an incomplete experiment in a new attempt
-directory. Its latest rows replace the previous attempt's rows in the CSV; older
-attempts remain on disk. Missing or invalid metrics are blank, never zero.
-Valid partial results are retained even on process failure, with a failure reason;
-the experiment is not marked complete. A failure stops the batch. Ctrl+C, SIGTERM
-and SIGHUP stop launched processes; completed experiments remain saved. Changed
-inputs or backend sources/compiler require a new output directory to avoid mixing
-runs. Do not run other Concrete jobs concurrently; existing shared queues cause
-the runner to stop before launching a job.
-
-This runner collects raw per-repetition data. It does not calculate plot averages
-or create charts or `.xlsx` files. Run its focused tests with:
-
-```bash
-python3 -m unittest discover -s quantas/Tests -p test_run_exp.py -v
-```
-
-To create the delivery-percentage figure, install matplotlib in an isolated
-environment (once), then run the plotting script:
-
-```bash
-python3 -m venv Results/.plot-venv
-Results/.plot-venv/bin/python -m pip install matplotlib
-Results/.plot-venv/bin/python plot_delivery.py Results/cpa_edge_remover_n100_k7/abstract.csv
-```
-
-`plot_delivery.py` saves `delivery_percentage.jpg` at 300 DPI and a matching PDF
-beside the CSV. Use `--output-dir` to choose another destination. It averages
-repetitions within each network, then weights the network means equally. Panels
-show threshold pairs, lines distinguish the two network groups, and shading
-shows the minimum–maximum range of network means (not a confidence interval).
-Unsuccessful or flagged rows are excluded; legitimate zero delivery is retained.
-Running the command again replaces the two figure files. When plotting Concrete
-data from the same folder, supply a separate `--output-dir` to preserve the
-Abstract figure.
 
 ## Platform Notes
 
