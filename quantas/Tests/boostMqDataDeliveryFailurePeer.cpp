@@ -1,6 +1,6 @@
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.hpp"
-#include "quantas/Common/Concrete/Backends/BoostMq/Logging/BoostMqOutputPaths.hpp"
 #include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.hpp"
+#include "quantas/Common/Concrete/Runtime/Logging/OutputPaths.hpp"
 #include "quantas/Common/Concrete/Runtime/Metrics/TransportMetrics.hpp"
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <chrono>
@@ -16,8 +16,7 @@ constexpr quantas::interfaceId kSenderId = 0;
 constexpr quantas::interfaceId kBlockedReceiverId = 1;
 
 std::string metricsPath(quantas::interfaceId peerId) {
-    return quantas::makeBoostMqPeerOutputPath("build/tests/mqDataDeliveryFailure.txt", 0, peerId,
-                                              1);
+    return quantas::makePeerOutputPath("build/tests/mqDataDeliveryFailure.txt", 0, peerId, 1);
 }
 
 void writeMetrics(quantas::interfaceId peerId, const quantas::TransportMetrics& metrics) {
@@ -41,7 +40,7 @@ int main(int argc, char* argv[]) {
     queueConfig.dataSendTimeoutMs = 25;
     queueConfig.controlSendTimeoutMs = 1000;
 
-    auto& coordinator = quantas::ProcessCoordinatorMQ::instance();
+    quantas::ProcessCoordinatorMQ coordinator;
     try {
         coordinator.configureExperiment(0, "ExamplePeer", false, kTotalPeers, peerId,
                                         "build/tests/mqDataDeliveryFailure.txt",

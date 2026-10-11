@@ -56,7 +56,7 @@ int main() {
     using boost::interprocess::message_queue;
     using namespace std::chrono_literals;
 
-    auto &coordinator = quantas::ProcessCoordinatorMQ::instance();
+    quantas::ProcessCoordinatorMQ coordinator;
     quantas::BoostMqQueueConfig queueConfig;
     queueConfig.controlQueueCapacity = 3;
     coordinator.configureExperiment(

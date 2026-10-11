@@ -12,15 +12,14 @@ namespace {
 using boost::interprocess::message_queue;
 using namespace std::chrono_literals;
 
-quantas::ProcessCoordinatorMQ& createLeader(size_t peerCount, size_t readyTimeoutMs = 30000) {
-    auto& coordinator = quantas::ProcessCoordinatorMQ::instance();
+void createLeader(quantas::ProcessCoordinatorMQ& coordinator, size_t peerCount,
+                  size_t readyTimeoutMs = 30000) {
     quantas::BoostMqQueueConfig queueConfig;
     queueConfig.controlQueueCapacity = peerCount;
     queueConfig.readyTimeoutMs = readyTimeoutMs;
     coordinator.configureExperiment(0, "test", true, peerCount, quantas::NO_PEER_ID, "cout",
                                     quantas::StopMode::FixedRounds, queueConfig);
     coordinator.createBarrier();
-    return coordinator;
 }
 
 void sendReady(quantas::interfaceId peerId) {
@@ -38,7 +37,8 @@ bool queueExists(const char* name) {
 }
 
 void testUniquePeerIdsCompleteBarrier() {
-    auto& coordinator = createLeader(3);
+    quantas::ProcessCoordinatorMQ coordinator;
+    createLeader(coordinator, 3);
     std::vector<quantas::interfaceId> readyPeerIds;
     bool readyTimedOut = false;
     auto result = std::async(std::launch::async,
@@ -64,7 +64,8 @@ void testUniquePeerIdsCompleteBarrier() {
 }
 
 void testInvalidPeerIdFails() {
-    auto& coordinator = createLeader(3);
+    quantas::ProcessCoordinatorMQ coordinator;
+    createLeader(coordinator, 3);
     std::vector<quantas::interfaceId> readyPeerIds;
     bool readyTimedOut = false;
     auto result = std::async(std::launch::async,
@@ -89,7 +90,8 @@ void testInvalidPeerIdFails() {
 }
 
 void testTimeoutReportsReadyPeers() {
-    auto& coordinator = createLeader(3, 50);
+    quantas::ProcessCoordinatorMQ coordinator;
+    createLeader(coordinator, 3, 50);
     sendReady(1);
 
     std::vector<quantas::interfaceId> readyPeerIds;

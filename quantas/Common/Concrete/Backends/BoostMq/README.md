@@ -9,14 +9,17 @@ For requirements, how to run an experiment, and the optional JSON settings, see 
 | Path | What it does |
 |---|---|
 | `Entrypoints/runBoostMq.sh` | Launcher. Starts the leader and one peer process per peer for each experiment, stops them on failure or interruption, and removes the queues. Usage: `runBoostMq.sh INPUTFILE LEADER_EXE PEER_EXE RESOURCE_DIR`. |
-| `Entrypoints/ConcreteMqLeader.cpp` | Leader. Validates the input, plans the topology, creates `mq_barrier` and `mq_done`, runs the start barrier, waits for the peers, and writes `leader_report.json`. |
-| `Entrypoints/ConcreteMqPeer.cpp` | Peer process. Builds one algorithm peer, swaps in the queue-based network interface, runs the peer loop (`runForDuration`), and writes its own report. |
-| `Transport/NetworkInterfaceConcreteMQ.*` | Algorithm messages: serialises `Packet`s into the neighbours' data queues and reads the peer's own data queue. Counts transport metrics. |
+| `BoostMqBackend.*` | The BoostMq child of `Backend`: reads the `boostMq` settings, runs the preflight checks, and creates the control plane and the transports below. |
+| `Transport/NetworkInterfaceConcreteMQ.*` | Child of `NetworkInterface` and `MeasuredTransport`. Algorithm messages: serialises `Packet`s into the neighbours' data queues and reads the peer's own data queue. Counts transport metrics. |
 | `Control/QueueConfig.*` | Reads the optional `boostMq` JSON settings and checks them; before a run, it checks that queues of the requested size can be created (`preflightBoostMqQueues`). |
-| `Control/ProcessCoordinatorMQ.*` | Control messages between the leader and the peers: ready, assignment, start, delivered, stop, done. |
-| `Logging/BoostMqReportWriter.*`, `BoostMqOutputPaths.hpp` | Builds `leader_report.json`, including the CPA and Dolev summaries, and the output paths. |
+| `Control/ProcessCoordinatorMQ.*` | Child of `ControlPlane`. Control messages between the leader and the peers: ready, assignment, start, delivered, stop, done. |
 
-Backend-independent pieces are in `quantas/Common/Concrete/Runtime/`: `Config/RuntimeConfig` (reads `topology`, `rounds`, `tests`, `windowMs`, `doneTimeoutMs`) and `Topology/TopologyPlanner` (builds the neighbour lists).
+Backend-independent pieces are in `quantas/Common/Concrete/Runtime/`:
+
+- `Engine/LeaderMain.cpp` (leader: validates the input, plans the topology, runs the start barrier, waits for the peers, writes `leader_report.json`), `Engine/PeerMain.cpp` (peer process: builds one algorithm peer with the backend's transport, writes its own report) and `Engine/RunLoop` (the peer loop `runForDuration`);
+- `Interfaces/` (the parent classes `Backend`, `ControlPlane`, `MeasuredTransport`), `Logging/` (`ReportWriter`, including the CPA and Dolev summaries, and `OutputPaths`), `Config/RuntimeConfig` (reads `topology`, `rounds`, `tests`, `windowMs`, `doneTimeoutMs`) and `Topology/TopologyPlanner` (builds the neighbour lists).
+
+The programs pick the backend from the experiment's optional `"backend"` field (default `"boostMq"`) through `Backends/BackendFactory.cpp`.
 
 ## Queues
 
@@ -95,7 +98,7 @@ Any peer registered with `PeerRegistry` runs unchanged: the peer process creates
 - `nlohmann::json collectAlgoMetrics() const`: per-peer metrics written to the peer report. The report writer combines them into `algoReliability` for `CPAPeer` and `DolevPeer`.
 - `bool localProtocolCompleted() const`: return `true` once the peer is done (for example, delivered). It is used for delivery reporting and early stopping.
 
-Early stopping and the CPA/Dolev summaries are enabled by peer type (`CPAPeer`, `DolevPeer`) in `ConcreteMqLeader.cpp` and `BoostMqReportWriter.cpp`. A new algorithm that needs them must be added there.
+Early stopping and the CPA/Dolev summaries are enabled by peer type (`CPAPeer`, `DolevPeer`) in `Runtime/Engine/LeaderMain.cpp` and `Runtime/Logging/ReportWriter.cpp`. A new algorithm that needs them must be added there.
 
 ## Limits
 

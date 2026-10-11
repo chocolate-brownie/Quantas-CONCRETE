@@ -1,11 +1,11 @@
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.hpp"
-#include "quantas/Common/Concrete/Backends/BoostMq/Logging/BoostMqOutputPaths.hpp"
+#include "quantas/Common/Concrete/Runtime/Logging/OutputPaths.hpp"
 #include <fstream>
 #include <string>
 
 namespace {
 std::string outputPath(const std::string& base, int peerId) {
-    return quantas::makeBoostMqPeerOutputPath(base, 0, peerId, 1);
+    return quantas::makePeerOutputPath(base, 0, peerId, 1);
 }
 } // namespace
 
@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
     queueConfig.controlQueueCapacity = 2;
     queueConfig.dataQueueCapacity = 1;
 
-    auto& coordinator = quantas::ProcessCoordinatorMQ::instance();
+    quantas::ProcessCoordinatorMQ coordinator;
     try {
         coordinator.configureExperiment(0, "ExamplePeer", false, 2, peerId,
                                         "build/tests/mqInvalidOutput.txt",

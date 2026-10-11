@@ -15,7 +15,6 @@
 #include <boost/interprocess/streams/bufferstream.hpp>
 #include <chrono>
 #include <cstddef>
-#include <cstdint>
 #include <cstring>
 #include <stdexcept>
 #include <string>
@@ -83,13 +82,6 @@ void waitForQueueRemoval(const std::string& queueName) {
 }
 } // namespace
 
-/* Utility: Return the single coordinator object used inside this process. Each leader or peer
- * process gets its own independent singleton. */
-ProcessCoordinatorMQ& ProcessCoordinatorMQ::instance() {
-    static ProcessCoordinatorMQ coordinator;
-    return coordinator;
-}
-
 /* Major operation: Load all coordinator state for one experiment. This sets the process role, peer
  * identity, peer count, queue settings, and stop mode, then clears state left by the previous test
  * or experiment. It does not create any operating-system queues. */
@@ -111,12 +103,34 @@ void ProcessCoordinatorMQ::configureExperiment(size_t experimentIndex, const std
     _myControlInbox.reset();
 }
 
+/* Utility: Keep the queue settings that the ControlPlane version of configureExperiment uses. */
+ProcessCoordinatorMQ::ProcessCoordinatorMQ(const BoostMqQueueConfig& queueConfig)
+    : _queueConfig(queueConfig) {}
+
+/* Utility: ControlPlane version of configureExperiment, with the queue settings given to the
+ * constructor. */
+void ProcessCoordinatorMQ::configureExperiment(size_t experimentIndex, const std::string& peerType,
+                                               bool isLeader, size_t totalPeers, interfaceId myId,
+                                               const std::string& logFileBase, StopMode stopMode) {
+    configureExperiment(experimentIndex, peerType, isLeader, totalPeers, myId, logFileBase,
+                        stopMode, _queueConfig);
+}
+
 /* Utility: Configure only the basic process role, peer count, and peer ID. This wrapper supplies
  * default experiment settings and delegates to the full configuration function. */
 void ProcessCoordinatorMQ::configureProcess(bool isLeader, size_t totalPeers, interfaceId myId) {
     BoostMqQueueConfig queueConfig;
     queueConfig.controlQueueCapacity = totalPeers;
     configureExperiment(0, "", isLeader, totalPeers, myId, "", StopMode::FixedRounds, queueConfig);
+}
+
+/* Utility: Create this process's control queues: the leader's shared queues or the peer's inboxes.
+ */
+void ProcessCoordinatorMQ::openChannels() {
+    if (_isLeader)
+        createBarrier();
+    else
+        createInbox();
 }
 
 /* Major operation: Create the two leader-owned shared queues for one test. Peers send their IDs to
@@ -569,7 +583,7 @@ void ProcessCoordinatorMQ::notifyPeerEvent(interfaceId id, PeerCompletionEvent e
             if (timedSendControlMessage(doneQueue, &completion, sizeof(completion),
                                         kControlSendWaitMs)) {
                 QUANTAS_LOG_INFO("coord") << "peer " << _myId << " reported event "
-                                           << static_cast<int>(event) << " for peer " << id;
+                                          << static_cast<int>(event) << " for peer " << id;
                 return;
             }
         } catch (const interprocess_exception& ex) {
@@ -655,8 +669,8 @@ PeerCompletionResult ProcessCoordinatorMQ::waitForAllDone(
                 if (deliveredCorrectPeers.insert(completion.peerId).second &&
                     deliveredCorrectPeers.size() == correctPeers.size()) {
                     result.brbCompletionTimeMs =
-                        std::chrono::duration<double, std::milli>(
-                            std::chrono::steady_clock::now() - *protocolStartTime)
+                        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() -
+                                                                  *protocolStartTime)
                             .count();
                     broadcastStop();
                 }

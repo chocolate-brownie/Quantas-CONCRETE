@@ -1,5 +1,5 @@
-#include "quantas/Common/Concrete/Backends/BoostMq/Logging/BoostMqReportWriter.hpp"
 #include "quantas/Common/Concrete/Runtime/Config/RuntimeConfig.hpp"
+#include "quantas/Common/Concrete/Runtime/Logging/ReportWriter.hpp"
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -23,55 +23,55 @@ int main() {
                                      {"2", record(true, false, 6, 1, 2)},
                                      {"3", record(false, false, -1, -1, 0)},
                                      {"4", record(true, true, 8, 1, 8)}};
-    const auto summary = quantas::BoostMqReportWriter::summarizeAlgoReliability(algorithmPeers);
+    const auto summary = quantas::ReportWriter::summarizeAlgoReliability(algorithmPeers);
     assert(summary.at("avg_delivery_round") == 5.0);
     assert(summary.at("avg_delivery_time_ms") == 50.0);
     assert(summary.at("avg_termination") == 75.0);
     assert(summary.at("avg_safety") == 66.67);
     assert(summary.at("total_msg_sent") == 20);
     assert(summary.at("avg_msg_sent") == 5.0);
-    quantas::BoostMqReportWriter::TestReportInfo algorithmInfo;
+    quantas::ReportWriter::TestReportInfo algorithmInfo;
     algorithmInfo.success = true;
     algorithmInfo.stopReason = quantas::ProtocolStopReason::AllCorrectDelivered;
     algorithmInfo.brbCompletionTimeMs = 12.5;
     algorithmInfo.peerMetrics = algorithmPeers;
     algorithmInfo.algoReliability =
-        quantas::BoostMqReportWriter::makeAlgorithmSummary("CPAPeer", algorithmInfo);
+        quantas::ReportWriter::makeAlgorithmSummary("CPAPeer", algorithmInfo);
     assert(algorithmInfo.algoReliability.at("available") == true);
     assert(algorithmInfo.algoReliability.at("avg_safety") == 66.67);
-    const auto completedReport = quantas::BoostMqReportWriter::makeTestReport(algorithmInfo);
+    const auto completedReport = quantas::ReportWriter::makeTestReport(algorithmInfo);
     assert(completedReport.at("algoReliability") == algorithmInfo.algoReliability);
     assert(completedReport.at("stop_reason") == "all_correct_delivered");
     assert(completedReport.at("brb_completion_time_ms") == 12.5);
     algorithmInfo.stopReason = quantas::ProtocolStopReason::DeadlineReached;
     algorithmInfo.brbCompletionTimeMs.reset();
-    const auto deadlineReport = quantas::BoostMqReportWriter::makeTestReport(algorithmInfo);
+    const auto deadlineReport = quantas::ReportWriter::makeTestReport(algorithmInfo);
     assert(deadlineReport.at("stop_reason") == "deadline_reached");
     assert(deadlineReport.at("brb_completion_time_ms").is_null());
     const auto unavailable =
-        quantas::BoostMqReportWriter::makeAlgorithmSummary("AltBitPeer", algorithmInfo);
+        quantas::ReportWriter::makeAlgorithmSummary("AltBitPeer", algorithmInfo);
     assert(unavailable.at("available") == false);
     assert(unavailable.contains("reason"));
     assert(!unavailable.contains("avg_safety"));
     const auto dolevSummary =
-        quantas::BoostMqReportWriter::makeAlgorithmSummary("DolevPeer", algorithmInfo);
+        quantas::ReportWriter::makeAlgorithmSummary("DolevPeer", algorithmInfo);
     assert(dolevSummary.at("available") == true);
     assert(dolevSummary.at("avg_safety") == 66.67);
     algorithmInfo.success = false;
-    assert(quantas::BoostMqReportWriter::makeAlgorithmSummary("CPAPeer", algorithmInfo)
-               .at("available") == false);
+    assert(quantas::ReportWriter::makeAlgorithmSummary("CPAPeer", algorithmInfo).at("available") ==
+           false);
     algorithmInfo.success = true;
     algorithmInfo.peerMetrics["1"] = nlohmann::json::object();
     algorithmInfo.algoReliability =
-        quantas::BoostMqReportWriter::makeAlgorithmSummary("CPAPeer", algorithmInfo);
+        quantas::ReportWriter::makeAlgorithmSummary("CPAPeer", algorithmInfo);
     assert(algorithmInfo.algoReliability.at("available") == false);
     assert(algorithmInfo.algoReliability.at("reason").get<std::string>().find("peer 1") !=
            std::string::npos);
-    const auto invalidReport = quantas::BoostMqReportWriter::makeTestReport(algorithmInfo);
+    const auto invalidReport = quantas::ReportWriter::makeTestReport(algorithmInfo);
     assert(invalidReport.at("success") == true);
     assert(invalidReport.at("algoReliability").at("available") == false);
-    const auto none = quantas::BoostMqReportWriter::summarizeAlgoReliability(
-        {{"0", record(false, true, -1, -1, 0)}});
+    const auto none =
+        quantas::ReportWriter::summarizeAlgoReliability({{"0", record(false, true, -1, -1, 0)}});
     assert(none.at("avg_delivery_round") == 0.0);
     assert(none.at("avg_delivery_time_ms") == 0.0);
     assert(none.at("avg_termination") == 0.0);
@@ -80,7 +80,7 @@ int main() {
     const auto rejects = [](const nlohmann::json& peers) {
         bool rejected = false;
         try {
-            quantas::BoostMqReportWriter::summarizeAlgoReliability(peers);
+            quantas::ReportWriter::summarizeAlgoReliability(peers);
         } catch (const std::exception&) {
             rejected = true;
         }
@@ -108,7 +108,7 @@ int main() {
                                           {"completedPeerCount", 5},
                                           {"peerMetrics", algorithmPeers}},
                                          {{"testIndex", 1}, {"success", false}}})}};
-    quantas::BoostMqReportWriter::writeLeaderReport(orderedPath.string(), orderingReport);
+    quantas::ReportWriter::writeLeaderReport(orderedPath.string(), orderingReport);
     std::ifstream orderedInput(orderedPath);
     const auto orderedReport = nlohmann::ordered_json::parse(orderedInput);
     auto field = orderedReport.at("tests").at(0).begin();
@@ -129,35 +129,34 @@ int main() {
 
     const nlohmann::json validPaths = {{"0", validPath.string()}};
     nlohmann::json peerMetrics;
-    assert(quantas::BoostMqReportWriter::readPeerMetrics(validPaths, {0}, peerMetrics));
+    assert(quantas::ReportWriter::readPeerMetrics(validPaths, {0}, peerMetrics));
     assert(peerMetrics.contains("0"));
 
     const nlohmann::json missingPath = {{"0", (testDirectory / "missing.json").string()}};
-    assert(!quantas::BoostMqReportWriter::readPeerMetrics(missingPath, {0}, peerMetrics));
+    assert(!quantas::ReportWriter::readPeerMetrics(missingPath, {0}, peerMetrics));
     assert(peerMetrics.empty());
 
     const nlohmann::json mixedMissingPaths = {
         {"0", validPath.string()},
         {"1", (testDirectory / "missing.json").string()},
     };
-    assert(!quantas::BoostMqReportWriter::readPeerMetrics(mixedMissingPaths, {0, 1}, peerMetrics));
+    assert(!quantas::ReportWriter::readPeerMetrics(mixedMissingPaths, {0, 1}, peerMetrics));
     assert(peerMetrics.contains("0"));
     assert(!peerMetrics.contains("1"));
 
     const nlohmann::json malformedPaths = {{"0", malformedPath.string()}};
-    assert(!quantas::BoostMqReportWriter::readPeerMetrics(malformedPaths, {0}, peerMetrics));
+    assert(!quantas::ReportWriter::readPeerMetrics(malformedPaths, {0}, peerMetrics));
     assert(peerMetrics.empty());
 
     const nlohmann::json mixedMalformedPaths = {
         {"0", validPath.string()},
         {"1", malformedPath.string()},
     };
-    assert(
-        !quantas::BoostMqReportWriter::readPeerMetrics(mixedMalformedPaths, {0, 1}, peerMetrics));
+    assert(!quantas::ReportWriter::readPeerMetrics(mixedMalformedPaths, {0, 1}, peerMetrics));
     assert(peerMetrics.contains("0"));
     assert(!peerMetrics.contains("1"));
 
-    const nlohmann::json reliability = quantas::BoostMqReportWriter::summarizeTransportReliability(
+    const nlohmann::json reliability = quantas::ReportWriter::summarizeTransportReliability(
         nlohmann::json{{"0", nlohmann::json{{"transportMetrics",
                                              {
                                                  {"sent", 10},
@@ -168,7 +167,7 @@ int main() {
     assert(reliability.at("pending_at_shutdown_total") == 2);
     assert(reliability.at("reliable") == true);
 
-    const nlohmann::json dropped = quantas::BoostMqReportWriter::summarizeTransportReliability(
+    const nlohmann::json dropped = quantas::ReportWriter::summarizeTransportReliability(
         nlohmann::json{{"0", nlohmann::json{{"transportMetrics",
                                              {
                                                  {"sent", 10},
@@ -184,24 +183,22 @@ int main() {
     experiment.topology = {{"type", "complete"}};
     experiment.rounds = 10;
     experiment.tests = 1;
-    quantas::BoostMqQueueConfig queueConfig;
-    queueConfig.controlQueueCapacity = 2;
-    queueConfig.dataSendTimeoutMs = 25;
+    // The backend's own settings (e.g. "boostMq") are added by Backend::addReportSettings.
     const nlohmann::json baseReport =
-        quantas::BoostMqReportWriter::makeBaseExperimentReport(0, experiment, queueConfig);
-    assert(baseReport.at("boostMq").at("dataSendTimeoutMs") == 25);
+        quantas::ReportWriter::makeBaseExperimentReport(0, experiment);
+    assert(baseReport.at("peerCount") == 2);
 
     const std::string leaderPath =
-        quantas::BoostMqReportWriter::makeLeaderReportPath("AltBitdropProb0.txt", 0);
+        quantas::ReportWriter::makeLeaderReportPath("AltBitdropProb0.txt", 0);
     assert(leaderPath == "Results/01EXP_AltBitdropProb0/leader_report.json");
     const nlohmann::json peerPaths =
-        quantas::BoostMqReportWriter::makePeerOutputFiles("AltBitdropProb0.txt", 0, 2, 2);
+        quantas::ReportWriter::makePeerOutputFiles("AltBitdropProb0.txt", 0, 2, 2);
     assert(peerPaths.at("0") == "Results/01EXP_AltBitdropProb0/peer_0_TEST2.txt");
     assert(peerPaths.at("1") == "Results/01EXP_AltBitdropProb0/peer_1_TEST2.txt");
 
-    assert(quantas::BoostMqReportWriter::makeLeaderReportPath("AltBitdropProb0.txt", 8) ==
+    assert(quantas::ReportWriter::makeLeaderReportPath("AltBitdropProb0.txt", 8) ==
            "Results/09EXP_AltBitdropProb0/leader_report.json");
-    assert(quantas::BoostMqReportWriter::makeLeaderReportPath("AltBitdropProb0.txt", 9) ==
+    assert(quantas::ReportWriter::makeLeaderReportPath("AltBitdropProb0.txt", 9) ==
            "Results/10EXP_AltBitdropProb0/leader_report.json");
 
     fs::remove_all(testDirectory);

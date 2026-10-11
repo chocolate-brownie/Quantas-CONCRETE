@@ -1,5 +1,5 @@
-#include "BoostMqReportWriter.hpp"
-#include "BoostMqOutputPaths.hpp"
+#include "quantas/Common/Concrete/Runtime/Logging/ReportWriter.hpp"
+#include "quantas/Common/Concrete/Runtime/Logging/OutputPaths.hpp"
 #include "quantas/Common/Logger.hpp"
 #include <cmath>
 #include <cstddef>
@@ -14,7 +14,7 @@ namespace quantas {
 
 /* Utility: Read the JSON metrics written by one peer. Stop with a clear error when the expected
  * file cannot be opened. */
-bool BoostMqReportWriter::readPeerMetricFile(const std::string& path, nlohmann::json& peerMetrics) {
+bool ReportWriter::readPeerMetricFile(const std::string& path, nlohmann::json& peerMetrics) {
     if (path.empty()) {
         QUANTAS_LOG_ERROR("report") << "peer metrics path is empty";
         return false;
@@ -53,9 +53,8 @@ bool BoostMqReportWriter::readPeerMetricFile(const std::string& path, nlohmann::
 }
 /* Main report operation: Create the basic experiment report before its tests run. The test results
  * are added later by the leader. */
-nlohmann::json
-BoostMqReportWriter::makeBaseExperimentReport(size_t expIndex, const RuntimeExperimentConfig& exp,
-                                              const BoostMqQueueConfig& queueConfig) {
+nlohmann::json ReportWriter::makeBaseExperimentReport(size_t expIndex,
+                                                      const RuntimeExperimentConfig& exp) {
     nlohmann::json report;
     report["backend"] = "mq";
     report["experimentIndex"] = expIndex;
@@ -68,18 +67,12 @@ BoostMqReportWriter::makeBaseExperimentReport(size_t expIndex, const RuntimeExpe
     report["doneTimeoutMs"] = exp.doneTimeoutMs;
     report["windowMs"] = exp.windowMs;
 
-    report["boostMq"] = {{"controlQueueCapacity", queueConfig.controlQueueCapacity},
-                         {"dataQueueCapacity", queueConfig.dataQueueCapacity},
-                         {"maxMessageSizeBytes", queueConfig.maxMessageSizeBytes},
-                         {"readyTimeoutMs", queueConfig.readyTimeoutMs},
-                         {"dataSendTimeoutMs", queueConfig.dataSendTimeoutMs}};
-
     report["tests"] = nlohmann::json::array();
     return report;
 }
 
 /* Main report operation: Convert the facts collected for one test into JSON. */
-nlohmann::json BoostMqReportWriter::makeTestReport(const TestReportInfo& info) {
+nlohmann::json ReportWriter::makeTestReport(const TestReportInfo& info) {
     nlohmann::json testReport;
     testReport["testIndex"] = info.testIndex;
     testReport["success"] = info.success;
@@ -110,7 +103,7 @@ nlohmann::json BoostMqReportWriter::makeTestReport(const TestReportInfo& info) {
 }
 
 /* Utility: Build the complete list of peer IDs expected in an experiment. */
-std::vector<interfaceId> BoostMqReportWriter::expectedPeers(int totalPeers) {
+std::vector<interfaceId> ReportWriter::expectedPeers(int totalPeers) {
     std::vector<interfaceId> peers;
     peers.reserve(static_cast<size_t>(totalPeers));
     for (int id = 0; id < totalPeers; ++id) {
@@ -122,8 +115,7 @@ std::vector<interfaceId> BoostMqReportWriter::expectedPeers(int totalPeers) {
 /* Utility: Compare observed peer IDs with the expected range and return the IDs that are
  * missing. */
 std::vector<interfaceId>
-BoostMqReportWriter::findMissingPeers(int totalPeers,
-                                      const std::vector<interfaceId>& completedPeers) {
+ReportWriter::findMissingPeers(int totalPeers, const std::vector<interfaceId>& completedPeers) {
     std::vector<bool> seen(static_cast<size_t>(totalPeers), false);
     for (interfaceId id : completedPeers) {
         if (id >= 0 && id < totalPeers) {
@@ -141,27 +133,25 @@ BoostMqReportWriter::findMissingPeers(int totalPeers,
 }
 
 /* Utility: Build the output path for one experiment's leader report. */
-std::string BoostMqReportWriter::makeLeaderReportPath(const std::string& logFileBase,
-                                                      size_t expIndex) {
-    return makeBoostMqLeaderReportPath(logFileBase, expIndex);
+std::string ReportWriter::makeLeaderReportPath(const std::string& logFileBase, size_t expIndex) {
+    return quantas::makeLeaderReportPath(logFileBase, expIndex);
 }
 
 /* Utility: Map every peer ID to the metrics file expected for one test. */
-nlohmann::json BoostMqReportWriter::makePeerOutputFiles(const std::string& logFileBase,
-                                                        size_t expIndex, int testNumber,
-                                                        int totalPeers) {
+nlohmann::json ReportWriter::makePeerOutputFiles(const std::string& logFileBase, size_t expIndex,
+                                                 int testNumber, int totalPeers) {
     nlohmann::json outputFiles = nlohmann::json::object();
 
     for (int peerId = 0; peerId < totalPeers; ++peerId) {
         outputFiles[std::to_string(peerId)] =
-            makeBoostMqPeerOutputPath(logFileBase, expIndex, peerId, testNumber);
+            makePeerOutputPath(logFileBase, expIndex, peerId, testNumber);
     }
     return outputFiles;
 }
 
 /* Main output operation: Write the final leader report to a file, stdout, or stderr according to
  * the configured path. */
-void BoostMqReportWriter::writeLeaderReport(const std::string& path, const nlohmann::json& report) {
+void ReportWriter::writeLeaderReport(const std::string& path, const nlohmann::json& report) {
     // Keep both summaries together before the detailed fields in each test.
     nlohmann::ordered_json outputReport = report;
     if (outputReport.contains("tests") && outputReport.at("tests").is_array()) {
@@ -196,9 +186,9 @@ void BoostMqReportWriter::writeLeaderReport(const std::string& path, const nlohm
 
 /* Main metrics operation: Read metrics for the supplied peer IDs. This can include a failed peer
  * that wrote its final transport counters before exit. */
-bool BoostMqReportWriter::readPeerMetrics(const nlohmann::json& peerOutputFiles,
-                                          const std::vector<interfaceId>& peerIds,
-                                          nlohmann::json& peerMetrics) {
+bool ReportWriter::readPeerMetrics(const nlohmann::json& peerOutputFiles,
+                                   const std::vector<interfaceId>& peerIds,
+                                   nlohmann::json& peerMetrics) {
     bool allOutputsValid = true;
     peerMetrics = nlohmann::json::object();
 
@@ -229,8 +219,8 @@ bool BoostMqReportWriter::readPeerMetrics(const nlohmann::json& peerOutputFiles,
 
 /* Select the algorithm's calculation rules. Keep the report writable when a summary is
  * unsupported, the test is incomplete, or a peer's algorithm metrics are invalid. */
-nlohmann::json BoostMqReportWriter::makeAlgorithmSummary(const std::string& peerType,
-                                                         const TestReportInfo& info) {
+nlohmann::json ReportWriter::makeAlgorithmSummary(const std::string& peerType,
+                                                  const TestReportInfo& info) {
     if (!info.success)
         return {{"available", false}, {"reason", "Test failed or is incomplete"}};
 
@@ -247,7 +237,7 @@ nlohmann::json BoostMqReportWriter::makeAlgorithmSummary(const std::string& peer
     }
 }
 
-nlohmann::json BoostMqReportWriter::summarizeAlgoReliability(const nlohmann::json& peerMetrics) {
+nlohmann::json ReportWriter::summarizeAlgoReliability(const nlohmann::json& peerMetrics) {
     if (!peerMetrics.is_object() || peerMetrics.empty())
         throw std::runtime_error("Cannot summarize algorithm metrics: no peer reports");
 
@@ -333,8 +323,7 @@ nlohmann::json BoostMqReportWriter::summarizeAlgoReliability(const nlohmann::jso
 
 /* Main metrics operation: Combine peer transport counters into one simple reliability summary
  * for the test. */
-nlohmann::json
-BoostMqReportWriter::summarizeTransportReliability(const nlohmann::json& peerMetrics) {
+nlohmann::json ReportWriter::summarizeTransportReliability(const nlohmann::json& peerMetrics) {
     uint64_t sentTotal = 0;
     uint64_t receivedRawTotal = 0;
     uint64_t deliveredToInstreamTotal = 0;

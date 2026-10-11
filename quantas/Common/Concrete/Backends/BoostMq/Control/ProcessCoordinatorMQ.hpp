@@ -1,8 +1,8 @@
 #ifndef PROCESS_COORDINATOR_MQ_HPP
 #define PROCESS_COORDINATOR_MQ_HPP
 
-#include "quantas/Common/Peer.hpp"
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/ControlPlane.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/NetworkInterface.hpp" // IWYU pragma: keep
 #include <atomic>
@@ -15,7 +15,6 @@
 #include <vector>
 
 namespace quantas {
-enum class StopMode { FixedRounds, DoneSignals };
 enum class PeerCompletionEvent : uint8_t { BrbDelivered, ProcessDone, ProcessFailed };
 
 struct PeerCompletionMessage {
@@ -23,14 +22,9 @@ struct PeerCompletionMessage {
     PeerCompletionEvent event{PeerCompletionEvent::ProcessDone};
 };
 
-struct PeerCompletionResult {
-    std::vector<interfaceId> completedPeers;
-    std::vector<interfaceId> failedPeers;
-    std::optional<double> brbCompletionTimeMs;
-    bool timedOut{false};
-};
-
-class ProcessCoordinatorMQ {
+/* BoostMq child of ControlPlane: control messages travel through Boost.Interprocess queues in
+ * /dev/shm (mq_barrier, mq_done, peer_<id>_control). */
+class ProcessCoordinatorMQ : public ControlPlane {
   private:
     /* -------------------- Experiment/process identity context --------------------
     Set once per experiment via configureExperiment(...). This identifies role,
@@ -57,16 +51,17 @@ class ProcessCoordinatorMQ {
     std::optional<boost::interprocess::message_queue> _myBarrier;
     std::optional<boost::interprocess::message_queue> _myControlInbox;
 
-    // -------------------- Lifetime/singleton control --------------------
-    ProcessCoordinatorMQ() = default;
-    ~ProcessCoordinatorMQ();
-    ProcessCoordinatorMQ(const ProcessCoordinatorMQ&) = delete;
-    ProcessCoordinatorMQ& operator=(const ProcessCoordinatorMQ&) = delete;
     void notifyPeerEvent(interfaceId id, PeerCompletionEvent event);
 
   public:
-    // -------------------- Singleton access --------------------
-    static ProcessCoordinatorMQ& instance();
+    /* -------------------- Lifetime --------------------
+    One coordinator per leader or peer process, created by its main(). Not copyable: it owns the
+    process's control queues. */
+    ProcessCoordinatorMQ() = default;
+    explicit ProcessCoordinatorMQ(const BoostMqQueueConfig& queueConfig);
+    ~ProcessCoordinatorMQ() override;
+    ProcessCoordinatorMQ(const ProcessCoordinatorMQ&) = delete;
+    ProcessCoordinatorMQ& operator=(const ProcessCoordinatorMQ&) = delete;
 
     /* -------------------- Configuration API --------------------
     Primary entry point used by MQ runtimes to bind this coordinator to one
@@ -74,41 +69,47 @@ class ProcessCoordinatorMQ {
     void configureExperiment(size_t experimentIndex, const std::string& peerType, bool isLeader,
                              size_t totalPeers, interfaceId myId, const std::string& logFileBase,
                              StopMode stopMode, const BoostMqQueueConfig& queueConfig);
+    // ControlPlane version: uses the queue settings given to the constructor.
+    void configureExperiment(size_t experimentIndex, const std::string& peerType, bool isLeader,
+                             size_t totalPeers, interfaceId myId, const std::string& logFileBase,
+                             StopMode stopMode) override;
     // Legacy wrapper kept for compatibility with older call sites.
     void configureProcess(bool isLeader, size_t totalPeers, interfaceId myId);
 
     // -------------------- start-gate handshake protocol --------------------
     void createBarrier();
     void createInbox();
-    void sendReady();
-    void waitForAllReady(std::vector<interfaceId>& readyPeerIds, bool& readyTimedOut);
-    void broadcastStart();
-    void waitForStart();
+    // ControlPlane version: createBarrier() on the leader, createInbox() on a peer.
+    void openChannels() override;
+    void sendReady() override;
+    void waitForAllReady(std::vector<interfaceId>& readyPeerIds, bool& readyTimedOut) override;
+    void broadcastStart() override;
+    void waitForStart() override;
 
     // -------------------- assignment protocol scaffolding --------------------
-    void sendAssignments(const std::vector<PeerAssignment>& assignments);
-    std::vector<PeerAssignment> waitForAssignments();
+    void sendAssignments(const std::vector<PeerAssignment>& assignments) override;
+    std::vector<PeerAssignment> waitForAssignments() override;
 
     /* -------------------- Cleanup/lifecycle helpers --------------------
     Remove MQ queues created for this experiment/process */
-    void cleanUp();
+    void cleanUp() override;
 
     /* -------------------- Stop policy query --------------------
     Placeholder for J9/J12 termination semantics (currently minimal behavior) */
     bool shouldStop() const;
     StopMode stopMode() const;
-    bool pollForStop();
+    bool pollForStop() override;
     void requestStop(const std::string& reason = "");
     void broadcastStop();
-    void broadcastStopBestEffort();
-    void waitForStop();
-    void notifyBrbDelivered(interfaceId id);
-    void notifyPeerStopped(interfaceId id);
-    void notifyPeerFailed(interfaceId id);
-    PeerCompletionResult waitForAllDone(
-        std::chrono::milliseconds timeout,
-        const std::vector<interfaceId>& correctPeerIds = {},
-        std::optional<std::chrono::steady_clock::time_point> protocolStartTime = std::nullopt);
+    void broadcastStopBestEffort() override;
+    void waitForStop() override;
+    void notifyBrbDelivered(interfaceId id) override;
+    void notifyPeerStopped(interfaceId id) override;
+    void notifyPeerFailed(interfaceId id) override;
+    PeerCompletionResult waitForAllDone(std::chrono::milliseconds timeout,
+                                        const std::vector<interfaceId>& correctPeerIds = {},
+                                        std::optional<std::chrono::steady_clock::time_point>
+                                            protocolStartTime = std::nullopt) override;
 };
 
 } // namespace quantas

@@ -1,7 +1,7 @@
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.hpp"
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.hpp"
-#include "quantas/Common/Concrete/Backends/BoostMq/Logging/BoostMqReportWriter.hpp"
 #include "quantas/Common/Concrete/Runtime/Config/RuntimeConfig.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/Backend.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/ControlPlane.hpp"
+#include "quantas/Common/Concrete/Runtime/Logging/ReportWriter.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/TopologyPlanner.hpp"
 #include "quantas/Common/Logger.hpp"
 #include "quantas/Common/LoggingSupport.hpp"
@@ -9,12 +9,13 @@
 #include <cstddef>
 #include <exception>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
-using bmqrep = quantas::BoostMqReportWriter;
+using bmqrep = quantas::ReportWriter;
 
 namespace {
 struct LeaderCliArgs {
@@ -96,7 +97,7 @@ std::vector<quantas::interfaceId> correctPeerIds(const nlohmann::json& experimen
 /* Readiness-timeout helper: Save the facts known when startup fails, ask any waiting peers to stop,
  * and remove the queues created for this test. */
 void handleReadinessTimeout(
-    bool& allTestsSucceeded, bool& experimentTimedOut, quantas::ProcessCoordinatorMQ& coordinator,
+    bool& allTestsSucceeded, bool& experimentTimedOut, quantas::ControlPlane& coordinator,
     bmqrep::TestReportInfo& testInfo, nlohmann::json& expReport, int totalPeers,
     const std::chrono::time_point<std::chrono::high_resolution_clock>& testStartTime) {
 
@@ -117,7 +118,7 @@ void handleReadinessTimeout(
 }
 
 void handleControlSendFailure(
-    bool& allTestsSucceeded, bool& experimentTimedOut, quantas::ProcessCoordinatorMQ& coordinator,
+    bool& allTestsSucceeded, bool& experimentTimedOut, quantas::ControlPlane& coordinator,
     bmqrep::TestReportInfo& testInfo, nlohmann::json& expReport,
     const std::chrono::time_point<std::chrono::high_resolution_clock>& testStartTime) {
 
@@ -152,9 +153,9 @@ int main(int argc, char* argv[]) {
     if (!experimentIndexes)
         return 1;
 
-    /* Use the shared coordinator to own the leader's rendezvous protocol and  the lifecycle of its
-     * BoostMQ resources. */
-    auto& coordinator = quantas::ProcessCoordinatorMQ::instance();
+    /* The control plane owns the leader's rendezvous protocol and the lifecycle of its backend
+     * resources. It is created by each experiment's backend below. */
+    std::unique_ptr<quantas::ControlPlane> controlPlane;
 
     /* Process each configured experiment independently so failures can be  reported with the
      * corresponding experiment index. */
@@ -166,22 +167,21 @@ int main(int argc, char* argv[]) {
 
             const nlohmann::json& experiment = (*config)["experiments"].at(expIndex);
 
-            /* Read the experiment settings, then check the BoostMQ queue sizes and topology
-             * messages before creating any queues. */
+            /* Read the experiment settings, then let the backend check its resources and the
+             * topology messages before creating any queues. */
             const auto exp = quantas::parseRuntimeExperiment(*config, expIndex);
 
-            /* Read the boostmq settings from the json, and then check whether the os can create
-             * queues using the requested capacities and maximum message size aka the preflight
-             * check */
-            auto boostConfig = quantas::parseBoostMqConfig(experiment, exp.initialPeers);
+            /* Create the experiment's backend ("backend" in the JSON, default "boostMq") and let
+             * it read its own settings. */
+            const auto backend =
+                quantas::BackendFactory::makeBackend(experiment.value("backend", "boostMq"));
+            backend->configure(experiment, exp.initialPeers);
 
             /* Build the selected topology. The result contains one assignment per peer with its
-             * ID, topology type, and neighbour IDs and then check that every serialized topology
-             * assignment fits inside a control queue message before any worker process starts */
+             * ID, topology type, and neighbour IDs. Then let the backend check, before any worker
+             * process starts, that it can run this experiment (the preflight check). */
             auto topology = quantas::buildTopology(exp.topology);
-            quantas::validateBoostMqAssignmentPayloads(topology.assignments, boostConfig, expIndex);
-
-            quantas::preflightBoostMqQueues(boostConfig, expIndex);
+            backend->preflight(topology.assignments, expIndex);
 
             /* If preflight-only mode is enabled, skip execution after validation and continue with
              * the next configured experiment. */
@@ -203,10 +203,12 @@ int main(int argc, char* argv[]) {
             const auto logFileBase = quantas::chooseLogFileBase(*config, experiment);
             const auto reportPath = bmqrep::makeLeaderReportPath(logFileBase, expIndex);
 
-            // Give the coordinator all the information he needs
+            // Create the control plane and give it all the information it needs
+            controlPlane = backend->makeControlPlane();
+            quantas::ControlPlane& coordinator = *controlPlane;
             coordinator.configureExperiment(expIndex, exp.initialPeerType, true, exp.initialPeers,
                                             quantas::NO_PEER_ID, logFileBase,
-                                            quantas::StopMode::FixedRounds, boostConfig);
+                                            quantas::StopMode::FixedRounds);
 
             QUANTAS_LOG_INFO("coord")
                 << "leader starting rendezvous for experiment " << expIndex
@@ -214,7 +216,8 @@ int main(int argc, char* argv[]) {
 
             /* Create the base leader report object so we can continue adding information to it
              * while the experiment runs. */
-            nlohmann::json expReport = bmqrep::makeBaseExperimentReport(expIndex, exp, boostConfig);
+            nlohmann::json expReport = bmqrep::makeBaseExperimentReport(expIndex, exp);
+            backend->addReportSettings(expReport);
             expReport["inputFile"] = cli->inputPath;
             expReport["expectedPeers"] = bmqrep::expectedPeers(exp.initialPeers);
 
@@ -239,7 +242,7 @@ int main(int argc, char* argv[]) {
 
                 /* Create fresh leader-owned queues: `mq_barrier` receives ready signals and
                  * `mq_done` receives completion reports from peers. */
-                coordinator.createBarrier();
+                coordinator.openChannels();
 
                 /* Wait for every expected peer to report that it is ready. If the deadline is
                  * reached first, mark the experiment as failed, save which peers are ready or
@@ -366,9 +369,10 @@ int main(int argc, char* argv[]) {
             if (experimentTimedOut)
                 return 1;
         } catch (const std::exception& ex) {
-            /* Release any partially initialized MQ state and fail with the  experiment index when
-             * configuration or runtime work throws. */
-            coordinator.cleanUp();
+            /* Release any partially initialized backend state and fail with the experiment index
+             * when configuration or runtime work throws. */
+            if (controlPlane)
+                controlPlane->cleanUp();
             std::cerr << "error: leader failed at experiment " << expIndex << ": " << ex.what()
                       << '\n';
 
@@ -379,7 +383,7 @@ int main(int argc, char* argv[]) {
     /* Confirm that validation-only mode checked every configured experiment without starting a
      * rendezvous. */
     if (cli->preflightOnly) {
-        QUANTAS_LOG_INFO("preflight") << "all BoostMQ queue preflight checks passed";
+        QUANTAS_LOG_INFO("preflight") << "all backend preflight checks passed";
     }
 
     return 0;

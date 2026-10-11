@@ -1,8 +1,9 @@
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.hpp"
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.hpp"
-#include "quantas/Common/Concrete/Backends/BoostMq/Logging/BoostMqOutputPaths.hpp"
-#include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.hpp"
 #include "quantas/Common/Concrete/Runtime/Config/RuntimeConfig.hpp"
+#include "quantas/Common/Concrete/Runtime/Engine/RunLoop.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/Backend.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/ControlPlane.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/MeasuredTransport.hpp"
+#include "quantas/Common/Concrete/Runtime/Logging/OutputPaths.hpp"
 #include "quantas/Common/Concrete/Runtime/Metrics/TransportMetrics.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/LogWriter.hpp"
@@ -45,13 +46,12 @@ void validateAssignment(const PeerAssignment& assignment, int totalPeers) {
     }
 }
 
-// Bind assignment data to the MQ interface, then attach it to the peer.
-void applyAssignment(const PeerAssignment& assignment, quantas::NetworkInterfaceConcreteMQ* mq,
-                     quantas::Peer* peer, std::size_t dataSendTimeoutMs) {
+// Create the backend's transport for this assignment, then attach it to the peer (which owns it).
+void applyAssignment(const PeerAssignment& assignment, quantas::Backend& backend,
+                     quantas::Peer* peer) {
     QUANTAS_LOG_INFO("topology") << "peer " << assignment.id
                                  << " using topology=" << assignment.topologyType;
-    mq->configure(assignment.id, assignment.neighbors, dataSendTimeoutMs);
-    peer->setNetworkInterface(mq);
+    peer->setNetworkInterface(backend.makeTransport(assignment).release());
 }
 
 // Parse the launcher-owned experiment index and peer identity.
@@ -90,7 +90,7 @@ std::optional<CliArgs> parseArgs(int argc, char** argv) {
 // Resolve and configure the output destination for this experiment.
 std::string configureExperimentOutput(const std::string& logFileBase, size_t expIndex,
                                       int testNumber, std::optional<int> processDisambiguator) {
-    const std::string metricsFile = quantas::makeBoostMqPeerOutputPath(
+    const std::string metricsFile = quantas::makePeerOutputPath(
         logFileBase, expIndex, processDisambiguator.value_or(quantas::NO_PEER_ID), testNumber);
     quantas::LogWriter::setLogFile(metricsFile);
     quantas::LogWriter::setTest(0);
@@ -100,28 +100,27 @@ std::string configureExperimentOutput(const std::string& logFileBase, size_t exp
 /* ========================= Worker-only utilities ========================= */
 
 // Perform follower-side start barrier rendezvous.
-void initRendezvous(quantas::ProcessCoordinatorMQ& coord, int myId) {
+void initRendezvous(quantas::ControlPlane& coord, int myId) {
     QUANTAS_LOG_INFO("runner") << "peer " << myId << " configuring process";
 
     QUANTAS_LOG_INFO("runner") << "peer " << myId << " creating inbox";
-    coord.createInbox();
+    coord.openChannels();
 
     QUANTAS_LOG_INFO("runner") << "peer " << myId << " sending ready";
     coord.sendReady();
 }
 
-/* Construct all peers assigned to this worker and bind each peer to an MQ
-   interface configured from its assignment (id + neighbors). */
+/* Construct all peers assigned to this worker and bind each peer to a backend
+   transport configured from its assignment (id + neighbors). */
 std::vector<quantas::Peer*> buildLocalPeers(const std::string& peerType,
                                             const std::vector<PeerAssignment>& assignments,
-                                            std::size_t dataSendTimeoutMs) {
+                                            quantas::Backend& backend) {
     std::vector<quantas::Peer*> localPeers;
     localPeers.reserve(assignments.size());
 
     for (const auto& assignment : assignments) {
         quantas::Peer* peer = quantas::PeerRegistry::makePeer(peerType, assignment.id);
-        auto* mq = new quantas::NetworkInterfaceConcreteMQ();
-        applyAssignment(assignment, mq, peer, dataSendTimeoutMs);
+        applyAssignment(assignment, backend, peer);
         localPeers.push_back(peer);
     }
 
@@ -140,112 +139,10 @@ void cleanUp(std::vector<quantas::Peer*>& localPeers) {
     localPeers.clear();
 }
 
-std::chrono::steady_clock::duration runForDuration(std::vector<quantas::Peer*>& localPeers,
-                                                   std::chrono::milliseconds duration,
-                                                   quantas::ProcessCoordinatorMQ& coordinator) {
-
-    constexpr auto pollInterval = std::chrono::milliseconds(10);
-
-    if (localPeers.size() != 1 || localPeers.front() == nullptr)
-        throw std::invalid_argument("Expected exactly one local peer");
-
-    if (duration.count() <= 0)
-        throw std::invalid_argument("Execution duration must be positive");
-
-    quantas::Peer& peer = *localPeers.front();
-
-    quantas::RoundManager::synchronous();
-    quantas::RoundManager::setCurrentRound(0);
-    quantas::RoundManager::setLastRound(0);
-
-    const auto deadline = std::chrono::steady_clock::now() + duration;
-    const auto startTime = std::chrono::steady_clock::now();
-    std::chrono::steady_clock::duration deliveryTime{};
-    bool deliveryReported = false;
-
-    /* Keep receiving after local delivery so neighbours can still relay to this peer; otherwise
-     * its data queue fills and their sends time out. Run until the leader's STOP or the deadline. */
-    while (std::chrono::steady_clock::now() < deadline && !coordinator.pollForStop()) {
-        const auto nextCheck = std::chrono::steady_clock::now() + pollInterval;
-        quantas::RoundManager::incrementRound();
-        peer.receive();
-
-        peer.tryPerformComputation();
-
-        if (!deliveryReported && peer.localProtocolCompleted()) {
-            deliveryTime = std::chrono::steady_clock::now() - startTime;
-            coordinator.notifyBrbDelivered(peer.publicId());
-            deliveryReported = true;
-        }
-
-        std::this_thread::sleep_until(std::min(nextCheck, deadline));
-    }
-
-    peer.endOfExperiment(localPeers);
-
-    return deliveryTime;
-}
-
-void runRounds(std::vector<quantas::Peer*>& localPeers, int rounds,
-               quantas::ProcessCoordinatorMQ& coordinator) {
-    size_t loopCount = 0;
-    std::string stopReason = "unknown";
-    const auto mode = coordinator.stopMode();
-    const char* modeLabel =
-        (mode == quantas::StopMode::FixedRounds) ? "FixedRounds" : "DoneSignals";
-
-    if (mode == quantas::StopMode::FixedRounds) {
-        quantas::RoundManager::synchronous();
-    } else {
-        quantas::RoundManager::asynchronous();
-    }
-    quantas::RoundManager::setCurrentRound(0);
-    quantas::RoundManager::setLastRound(rounds);
-
-    while (!coordinator.shouldStop()) {
-        if (mode == quantas::StopMode::FixedRounds && loopCount >= static_cast<size_t>(rounds)) {
-            stopReason = "fixed_rounds_reached";
-            break;
-        }
-
-        // --------------------------- Round starts ---------------------------
-        quantas::RoundManager::incrementRound();
-        for (auto* peer : localPeers) {
-            if (!peer)
-                continue;
-            peer->receive();
-            peer->tryPerformComputation();
-        }
-        localPeers.front()->endOfRound(localPeers);
-        ++loopCount;
-        // --------------------------- Round Ends ---------------------------
-
-        if (mode == quantas::StopMode::DoneSignals && loopCount >= static_cast<size_t>(rounds)) {
-            stopReason = "done_signals_not_implemented_fallback";
-            coordinator.requestStop(stopReason);
-        }
-    }
-
-    /* If the algorithm layer has an `endOfExperiment` it will override otherwise the runtime layer
-     * does nothing */
-    localPeers.front()->endOfExperiment(localPeers);
-
-    // Observability/debug evidence for how and why each peer’s loop terminated.
-    const auto currentRound = quantas::RoundManager::currentRound();
-    for (const auto* peer : localPeers) {
-        if (!peer)
-            continue;
-        QUANTAS_LOG_INFO("runner")
-            << "peer " << peer->publicId() << " loop exit summary: mode=" << modeLabel
-            << " loopCount=" << loopCount << " currentRoundView=" << currentRound
-            << " reason=" << stopReason;
-    }
-}
-
 // Try to build peers from topology rules
 bool prepareLocalPeers(const quantas::RuntimeExperimentConfig& exp,
                        const std::vector<PeerAssignment>& assignments,
-                       std::vector<quantas::Peer*>& localPeers, std::size_t dataSendTimeoutMs) {
+                       std::vector<quantas::Peer*>& localPeers, quantas::Backend& backend) {
     if (assignments.empty())
         return false;
 
@@ -253,7 +150,7 @@ bool prepareLocalPeers(const quantas::RuntimeExperimentConfig& exp,
         validateAssignment(assignment, exp.initialPeers);
     }
 
-    localPeers = buildLocalPeers(exp.initialPeerType, assignments, dataSendTimeoutMs);
+    localPeers = buildLocalPeers(exp.initialPeerType, assignments, backend);
     return !localPeers.empty();
 }
 
@@ -268,7 +165,7 @@ quantas::TransportMetrics collectTransportMetrics(const std::vector<quantas::Pee
         if (!peer)
             continue;
         const auto* mq =
-            dynamic_cast<const quantas::NetworkInterfaceConcreteMQ*>(peer->getNetworkInterface());
+            dynamic_cast<const quantas::MeasuredTransport*>(peer->getNetworkInterface());
 
         if (!mq)
             continue;
@@ -287,7 +184,7 @@ void resetTransportMetrics(const std::vector<quantas::Peer*>& localPeers) {
     for (const auto* peer : localPeers) {
         if (!peer)
             continue;
-        auto* mq = dynamic_cast<quantas::NetworkInterfaceConcreteMQ*>(peer->getNetworkInterface());
+        auto* mq = dynamic_cast<quantas::MeasuredTransport*>(peer->getNetworkInterface());
         if (mq) {
             mq->resetTransportMetrics();
         }
@@ -339,8 +236,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    /* Get the coordinator that talks to the leader through the BoostMQ control queues. */
-    auto& coordinator = quantas::ProcessCoordinatorMQ::instance();
+    /* The control plane talks to the leader; it is created by the experiment's backend below. */
+    std::unique_ptr<quantas::ControlPlane> controlPlane;
     const size_t expIndex = cli->experimentIndex;
 
     /* Keep this process's algorithm peer objects and remember which test is active in case
@@ -353,9 +250,12 @@ int main(int argc, char** argv) {
         const nlohmann::json& experiment = (*config)["experiments"].at(expIndex);
         quantas::RuntimeExperimentConfig exp = quantas::parseRuntimeExperiment(*config, expIndex);
 
-        /* Read this experiment's BoostMQ queue settings, or use the default settings when they are
-         * not written in the JSON. */
-        const auto queueConfig = quantas::parseBoostMqConfig(experiment, exp.initialPeers);
+        /* Create the experiment's backend ("backend" in the JSON, default "boostMq"), let it read
+         * its own settings, and create the control plane that talks to the leader. */
+        const auto backend =
+            quantas::BackendFactory::makeBackend(experiment.value("backend", "boostMq"));
+        backend->configure(experiment, exp.initialPeers);
+        controlPlane = backend->makeControlPlane();
 
         /* Choose the results location and use the peer ID to keep different peer processes from
          * writing to the same file. */
@@ -371,27 +271,26 @@ int main(int argc, char** argv) {
             const std::string metricsFile =
                 configureExperimentOutput(logFileBase, expIndex, testNumber, processDisambiguator);
 
-            /* Tell the coordinator which test is running, who this peer is, and which queue
-             * settings to use. */
-            coordinator.configureExperiment(expIndex, exp.initialPeerType, false, exp.initialPeers,
-                                            cli->peerId, logFileBase,
-                                            quantas::StopMode::FixedRounds, queueConfig);
+            /* Tell the control plane which test is running and who this peer is. */
+            controlPlane->configureExperiment(expIndex, exp.initialPeerType, false,
+                                              exp.initialPeers, cli->peerId, logFileBase,
+                                              quantas::StopMode::FixedRounds);
             QUANTAS_LOG_INFO("runner") << "peer " << cli->peerId << " output file: " << metricsFile;
             QUANTAS_LOG_INFO("runner") << "peer " << cli->peerId << " starting experiment "
                                        << expIndex << " test " << testNumber;
 
             /* Create this peer's inbox and send READY to tell the leader that this process is
              * prepared. */
-            initRendezvous(coordinator, cli->peerId);
+            initRendezvous(*controlPlane, cli->peerId);
 
             /* Wait for the leader to send this peer's ID, topology type, and neighbour IDs. */
-            std::vector<PeerAssignment> assignments = coordinator.waitForAssignments();
+            std::vector<PeerAssignment> assignments = controlPlane->waitForAssignments();
 
-            /* Create the algorithm peer and attach a BoostMQ network interface configured with its
+            /* Create the algorithm peer and attach the backend's transport configured with its
              * assignment. */
-            if (!prepareLocalPeers(exp, assignments, localPeers, queueConfig.dataSendTimeoutMs)) {
+            if (!prepareLocalPeers(exp, assignments, localPeers, *backend)) {
                 cleanUp(localPeers);
-                coordinator.cleanUp();
+                controlPlane->cleanUp();
                 QUANTAS_LOG_WARN("runner")
                     << "experiment " << expIndex << ": no runnable local peers, skipping";
                 continue;
@@ -403,7 +302,7 @@ int main(int argc, char** argv) {
 
             /* Wait until the leader confirms that every peer is ready and sends the START signal*/
             QUANTAS_LOG_INFO("runner") << "peer " << cli->peerId << " waiting for start";
-            coordinator.waitForStart();
+            controlPlane->waitForStart();
             QUANTAS_LOG_INFO("runner") << "peer " << cli->peerId << " start signal acknowledged";
 
             /* Give the JSON algorithm parameters to the local peer so it can prepare its own
@@ -417,44 +316,44 @@ int main(int argc, char** argv) {
             try {
                 /* Let this peer receive messages and perform its algorithm work for the configured
                  * number of local rounds. */
-                deliveryMs = runForDuration(localPeers, std::chrono::milliseconds(exp.windowMs),
-                                            coordinator);
+                deliveryMs = quantas::runForDuration(
+                    localPeers, std::chrono::milliseconds(exp.windowMs), *controlPlane);
             } catch (...) {
                 /* If execution fails, save the metrics collected so far and pass the error to the
                  * main failure handler below. */
-                emitFinalExperimentMetrics(startTime, localPeers, queueConfig.dataQueueCapacity,
+                emitFinalExperimentMetrics(startTime, localPeers, backend->dataQueueCapacity(),
                                            deliveryMs);
                 throw;
             }
 
             /* Save this peer's runtime, memory use, and message transport counters after a
              * successful run. */
-            emitFinalExperimentMetrics(startTime, localPeers, queueConfig.dataQueueCapacity,
+            emitFinalExperimentMetrics(startTime, localPeers, backend->dataQueueCapacity(),
                                        deliveryMs);
 
             /* Send DONE to tell the leader that this peer completed its configured local rounds and
              * wrote its metrics. */
-            coordinator.notifyPeerStopped(localPeers.front()->publicId());
+            controlPlane->notifyPeerStopped(localPeers.front()->publicId());
 
             /* Keep this process alive until the leader receives DONE from every peer and sends the
              * final STOP signal. */
-            coordinator.waitForStop();
+            controlPlane->waitForStop();
 
             /* Delete this test's algorithm peer and network interface before starting the next
              * test. */
             cleanUp(localPeers);
         }
 
-        /* After all tests finish, release the coordinator's remaining queues and other BoostMQ
-         * resources. */
-        coordinator.cleanUp();
+        /* After all tests finish, release the control plane's remaining backend resources. */
+        controlPlane->cleanUp();
 
     } catch (const std::exception& ex) {
         /* If any step fails, report the failure when possible, release all local resources, print
          * the reason, and exit with an error code. */
         if (activeTestNumber > 0) {
             try {
-                coordinator.notifyPeerFailed(cli->peerId);
+                if (controlPlane)
+                    controlPlane->notifyPeerFailed(cli->peerId);
             } catch (const std::exception& notifyError) {
                 QUANTAS_LOG_ERROR("runner")
                     << "peer " << cli->peerId
@@ -462,7 +361,8 @@ int main(int argc, char** argv) {
             }
         }
         cleanUp(localPeers);
-        coordinator.cleanUp();
+        if (controlPlane)
+            controlPlane->cleanUp();
         QUANTAS_LOG_ERROR("runner")
             << "experiment " << expIndex
             << (activeTestNumber > 0 ? " test " + std::to_string(activeTestNumber) : "")

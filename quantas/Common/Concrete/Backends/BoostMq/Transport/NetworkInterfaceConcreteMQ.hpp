@@ -2,6 +2,7 @@
 #define NETWORK_INTERFACE_CONCRETE_MQ_HPP
 
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/MeasuredTransport.hpp"
 #include "quantas/Common/Concrete/Runtime/Metrics/TransportMetrics.hpp"
 #include "quantas/Common/Json.hpp"
 #include "quantas/Common/NetworkInterface.hpp"
@@ -13,7 +14,8 @@
 
 namespace quantas {
 
-class NetworkInterfaceConcreteMQ : public NetworkInterface {
+/* BoostMq transport: algorithm messages travel through each peer's peer_<id>_data queue. */
+class NetworkInterfaceConcreteMQ : public NetworkInterface, public MeasuredTransport {
   private:
     std::atomic<bool> _configured{false};
     std::optional<boost::interprocess::message_queue> _myInbox;
@@ -38,9 +40,9 @@ class NetworkInterfaceConcreteMQ : public NetworkInterface {
 
     void requestStop();
 
-    TransportMetrics transportMetrics() const;
+    TransportMetrics transportMetrics() const override;
 
-    void resetTransportMetrics();
+    void resetTransportMetrics() override;
 
     std::size_t getPendingMessageCount() const;
 };

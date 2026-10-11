@@ -60,7 +60,10 @@ ABSTRACT_SRCS := $(COMMON_SRCS) \
 	quantas/Common/Concrete/Backends/TCP/ProcessCoordinator.cpp \
 	quantas/Common/Concrete/Backends/TCP/ipUtil.cpp
 MQ_SRCS := $(COMMON_SRCS) \
-	quantas/Common/Concrete/Backends/BoostMq/Entrypoints/ConcreteMqPeer.cpp \
+	quantas/Common/Concrete/Runtime/Engine/PeerMain.cpp \
+	quantas/Common/Concrete/Runtime/Engine/RunLoop.cpp \
+	quantas/Common/Concrete/Backends/BackendFactory.cpp \
+	quantas/Common/Concrete/Backends/BoostMq/BoostMqBackend.cpp \
 	quantas/Common/Concrete/Runtime/Config/RuntimeConfig.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.cpp \
@@ -71,12 +74,15 @@ MQ_SRCS := $(COMMON_SRCS) \
 	quantas/Common/Concrete/Backends/TCP/ProcessCoordinator.cpp \
 	quantas/Common/Concrete/Backends/TCP/ipUtil.cpp
 MQ_LEADER_SRCS := $(COMMON_SRCS) \
-	quantas/Common/Concrete/Backends/BoostMq/Entrypoints/ConcreteMqLeader.cpp \
-	quantas/Common/Concrete/Backends/BoostMq/Logging/BoostMqReportWriter.cpp \
+	quantas/Common/Concrete/Runtime/Engine/LeaderMain.cpp \
+	quantas/Common/Concrete/Runtime/Logging/ReportWriter.cpp \
+	quantas/Common/Concrete/Backends/BackendFactory.cpp \
+	quantas/Common/Concrete/Backends/BoostMq/BoostMqBackend.cpp \
 	quantas/Common/Concrete/Runtime/Config/RuntimeConfig.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.cpp \
 	quantas/Common/Concrete/Runtime/Topology/TopologyPlanner.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.cpp \
+	quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.cpp \
 	quantas/Common/Abstract/Channel.cpp
 
 # Only commands that build or run algorithm code need to read INPUTFILE.
@@ -458,8 +464,8 @@ build/tests/mq_transport_metrics_test.exe: quantas/Tests/boostMqTransportMetrics
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
 
 build/tests/mq_report_test.exe: quantas/Tests/boostMqReportWriterTest.cpp \
-		quantas/Common/Concrete/Backends/BoostMq/Logging/BoostMqReportWriter.cpp \
-		quantas/Common/Concrete/Backends/BoostMq/Logging/BoostMqOutputPaths.hpp \
+		quantas/Common/Concrete/Runtime/Logging/ReportWriter.cpp \
+		quantas/Common/Concrete/Runtime/Logging/OutputPaths.hpp \
 		quantas/Common/LoggingSupport.cpp quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) $(filter %.cpp,$^) -o $@ $(MQ_LDLIBS)
