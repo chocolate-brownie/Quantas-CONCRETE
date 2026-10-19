@@ -3,31 +3,32 @@
 // See BoostMqBackend.cpp for what each function has to do.
 
 #include "quantas/Common/Concrete/Backends/ZMq/ZMqBackend.hpp"
-#include <stdexcept>
-#include <string>
+#include "quantas/Common/Concrete/Backends/ZMq/Control/ZMqControlPlane.hpp"
+#include "quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.hpp"
+#include <memory>
 
 namespace quantas {
 
-namespace {
-[[noreturn]] void notImplemented(const std::string& function) {
-    throw std::runtime_error("ZMq backend: " + function + " is not implemented yet");
-}
-} // namespace
-
-void ZMqBackend::configure(const nlohmann::json&, int) { notImplemented("configure"); }
-
-void ZMqBackend::preflight(const std::vector<PeerAssignment>&, std::size_t) {
-    notImplemented("preflight");
+void ZMqBackend::configure(const nlohmann::json& experiment, int peerCount) {
+    _queueConfig = parseZMqConfig(experiment, peerCount);
 }
 
-std::unique_ptr<ControlPlane> ZMqBackend::makeControlPlane() { notImplemented("makeControlPlane"); }
+void ZMqBackend::preflight(const std::vector<PeerAssignment>& assignments,
+                           std::size_t experimentIndex) {
+    validateZMqAssignmentPayloads(assignments, _queueConfig, experimentIndex);
+    preflightZMqQueues(_queueConfig, experimentIndex);
+}
 
-std::unique_ptr<NetworkInterface> ZMqBackend::makeTransport(const PeerAssignment&) {
+std::unique_ptr<ControlPlane> ZMqBackend::makeControlPlane() {
+    return std::make_unique<ZMqControlPlane>(_queueConfig);
+}
+
+/* std::unique_ptr<NetworkInterface> ZMqBackend::makeTransport(const PeerAssignment&) {
     notImplemented("makeTransport");
 }
 
 void ZMqBackend::addReportSettings(nlohmann::json&) const { notImplemented("addReportSettings"); }
 
-std::size_t ZMqBackend::dataQueueCapacity() const { notImplemented("dataQueueCapacity"); }
+std::size_t ZMqBackend::dataQueueCapacity() const { notImplemented("dataQueueCapacity"); } */
 
 } // namespace quantas

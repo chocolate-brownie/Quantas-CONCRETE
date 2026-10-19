@@ -174,7 +174,7 @@ leadermain     * an experiment. */
             /* Create the experiment's backend ("backend" in the JSON, default "boostMq") and let
              * it read its own settings. */
             const auto backend =
-                quantas::BackendFactory::makeBackend(experiment.value("backend", "zMq"));
+                quantas::BackendFactory::makeBackend(experiment.value("backend", "zeroMq"));
             backend->configure(experiment, exp.initialPeers);
 
             /* Build the selected topology. The result contains one assignment per peer with its
