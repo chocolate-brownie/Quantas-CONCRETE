@@ -51,7 +51,7 @@ void NetworkInterfaceConcreteMQ::configure(interfaceId id, std::set<interfaceId>
 
     std::string queueName = peerDataQueueName(id);
 
-    // ProcessCoordinatorMQ creates the data queue before this interface opens it.
+    // BoostMqControlPlane creates the data queue before this interface opens it.
     _myInbox.emplace(boost::interprocess::open_only, queueName.c_str());
     _configured = true;
 }

@@ -1,4 +1,4 @@
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.hpp"
 #include <boost/interprocess/exceptions.hpp>
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <cassert>
@@ -12,7 +12,7 @@ namespace {
 using boost::interprocess::message_queue;
 using namespace std::chrono_literals;
 
-void createLeader(quantas::ProcessCoordinatorMQ& coordinator, size_t peerCount,
+void createLeader(quantas::BoostMqControlPlane& coordinator, size_t peerCount,
                   size_t readyTimeoutMs = 30000) {
     quantas::BoostMqQueueConfig queueConfig;
     queueConfig.controlQueueCapacity = peerCount;
@@ -37,7 +37,7 @@ bool queueExists(const char* name) {
 }
 
 void testUniquePeerIdsCompleteBarrier() {
-    quantas::ProcessCoordinatorMQ coordinator;
+    quantas::BoostMqControlPlane coordinator;
     createLeader(coordinator, 3);
     std::vector<quantas::interfaceId> readyPeerIds;
     bool readyTimedOut = false;
@@ -64,7 +64,7 @@ void testUniquePeerIdsCompleteBarrier() {
 }
 
 void testInvalidPeerIdFails() {
-    quantas::ProcessCoordinatorMQ coordinator;
+    quantas::BoostMqControlPlane coordinator;
     createLeader(coordinator, 3);
     std::vector<quantas::interfaceId> readyPeerIds;
     bool readyTimedOut = false;
@@ -90,7 +90,7 @@ void testInvalidPeerIdFails() {
 }
 
 void testTimeoutReportsReadyPeers() {
-    quantas::ProcessCoordinatorMQ coordinator;
+    quantas::BoostMqControlPlane coordinator;
     createLeader(coordinator, 3, 50);
     sendReady(1);
 

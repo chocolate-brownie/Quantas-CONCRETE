@@ -1,7 +1,7 @@
 // BoostMq backend implementation.
 
 #include "quantas/Common/Concrete/Backends/BoostMq/BoostMqBackend.hpp"
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.hpp"
 #include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.hpp"
 
 namespace quantas {
@@ -20,7 +20,7 @@ void BoostMqBackend::preflight(const std::vector<PeerAssignment>& assignments,
 }
 
 std::unique_ptr<ControlPlane> BoostMqBackend::makeControlPlane() {
-    return std::make_unique<ProcessCoordinatorMQ>(_queueConfig);
+    return std::make_unique<BoostMqControlPlane>(_queueConfig);
 }
 
 /* Bind a new queue transport to the peer's ID and neighbours. */

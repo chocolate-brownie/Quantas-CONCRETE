@@ -12,7 +12,7 @@
 
 namespace quantas {
 
-/* Parent class of every Concrete backend (BoostMq, ZeroMq, ...). The generic runtime only talks to
+/* Parent class of every Concrete backend (BoostMq, ZMq, ...). The generic runtime only talks to
  * this class; each backend implements it in quantas/Common/Concrete/Backends/<Name>/. */
 class Backend {
   public:

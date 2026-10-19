@@ -1,10 +1,10 @@
-// BoostMq child of Backend: ties together ProcessCoordinatorMQ (control plane) and
+// BoostMq child of Backend: ties together BoostMqControlPlane (control plane) and
 // NetworkInterfaceConcreteMQ (transport), both configured from the experiment's "boostMq" settings.
 
 #ifndef QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_BOOSTMQBACKEND_HPP
 #define QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_BOOSTMQBACKEND_HPP
 
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqQueueConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Interfaces/Backend.hpp"
 
 namespace quantas {

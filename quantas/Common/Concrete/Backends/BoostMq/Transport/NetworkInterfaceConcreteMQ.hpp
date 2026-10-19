@@ -1,7 +1,7 @@
 #ifndef NETWORK_INTERFACE_CONCRETE_MQ_HPP
 #define NETWORK_INTERFACE_CONCRETE_MQ_HPP
 
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqQueueConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Interfaces/MeasuredTransport.hpp"
 #include "quantas/Common/Concrete/Runtime/Metrics/TransportMetrics.hpp"
 #include "quantas/Common/Json.hpp"

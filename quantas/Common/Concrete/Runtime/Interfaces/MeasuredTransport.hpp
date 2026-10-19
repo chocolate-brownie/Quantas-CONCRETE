@@ -9,7 +9,7 @@
 namespace quantas {
 
 /* A backend's transport inherits from both NetworkInterface (send and receive) and this class
- * (counters), e.g. class NetworkInterfaceZmq : public NetworkInterface, public MeasuredTransport.
+ * (counters), e.g. class NetworkInterfaceZMq : public NetworkInterface, public MeasuredTransport.
  * The peer program reads the counters through a MeasuredTransport*, so it never names a backend. */
 class MeasuredTransport {
   public:

@@ -1,5 +1,5 @@
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/ProcessCoordinatorMQ.hpp"
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqQueueConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/Logger.hpp"
 #include <algorithm>
@@ -85,10 +85,10 @@ void waitForQueueRemoval(const std::string& queueName) {
 /* Major operation: Load all coordinator state for one experiment. This sets the process role, peer
  * identity, peer count, queue settings, and stop mode, then clears state left by the previous test
  * or experiment. It does not create any operating-system queues. */
-void ProcessCoordinatorMQ::configureExperiment(size_t experimentIndex, const std::string& peerType,
-                                               bool isLeader, size_t totalPeers, interfaceId myId,
-                                               const std::string& logFileBase, StopMode stopMode,
-                                               const BoostMqQueueConfig& queueConfig) {
+void BoostMqControlPlane::configureExperiment(size_t experimentIndex, const std::string& peerType,
+                                              bool isLeader, size_t totalPeers, interfaceId myId,
+                                              const std::string& logFileBase, StopMode stopMode,
+                                              const BoostMqQueueConfig& queueConfig) {
     _queueConfig = queueConfig;
     _experimentIndex = experimentIndex;
     _peerType = peerType;
@@ -104,21 +104,21 @@ void ProcessCoordinatorMQ::configureExperiment(size_t experimentIndex, const std
 }
 
 /* Utility: Keep the queue settings that the ControlPlane version of configureExperiment uses. */
-ProcessCoordinatorMQ::ProcessCoordinatorMQ(const BoostMqQueueConfig& queueConfig)
+BoostMqControlPlane::BoostMqControlPlane(const BoostMqQueueConfig& queueConfig)
     : _queueConfig(queueConfig) {}
 
 /* Utility: ControlPlane version of configureExperiment, with the queue settings given to the
  * constructor. */
-void ProcessCoordinatorMQ::configureExperiment(size_t experimentIndex, const std::string& peerType,
-                                               bool isLeader, size_t totalPeers, interfaceId myId,
-                                               const std::string& logFileBase, StopMode stopMode) {
+void BoostMqControlPlane::configureExperiment(size_t experimentIndex, const std::string& peerType,
+                                              bool isLeader, size_t totalPeers, interfaceId myId,
+                                              const std::string& logFileBase, StopMode stopMode) {
     configureExperiment(experimentIndex, peerType, isLeader, totalPeers, myId, logFileBase,
                         stopMode, _queueConfig);
 }
 
 /* Utility: Configure only the basic process role, peer count, and peer ID. This wrapper supplies
  * default experiment settings and delegates to the full configuration function. */
-void ProcessCoordinatorMQ::configureProcess(bool isLeader, size_t totalPeers, interfaceId myId) {
+void BoostMqControlPlane::configureProcess(bool isLeader, size_t totalPeers, interfaceId myId) {
     BoostMqQueueConfig queueConfig;
     queueConfig.controlQueueCapacity = totalPeers;
     configureExperiment(0, "", isLeader, totalPeers, myId, "", StopMode::FixedRounds, queueConfig);
@@ -126,7 +126,7 @@ void ProcessCoordinatorMQ::configureProcess(bool isLeader, size_t totalPeers, in
 
 /* Utility: Create this process's control queues: the leader's shared queues or the peer's inboxes.
  */
-void ProcessCoordinatorMQ::openChannels() {
+void BoostMqControlPlane::openChannels() {
     if (_isLeader)
         createBarrier();
     else
@@ -136,7 +136,7 @@ void ProcessCoordinatorMQ::openChannels() {
 /* Major operation: Create the two leader-owned shared queues for one test. Peers send their IDs to
  * `mq_barrier` when ready and to `mq_done` when their work is complete. Old queues with those exact
  * names are removed first. */
-void ProcessCoordinatorMQ::createBarrier() {
+void BoostMqControlPlane::createBarrier() {
     if (!_isLeader)
         return;
 
@@ -160,7 +160,7 @@ void ProcessCoordinatorMQ::createBarrier() {
 /* Major operation: Create this peer's two private inboxes. The control inbox receives framework
  * messages; the data inbox receives algorithm packets. The leader does not create a peer inbox for
  * itself. */
-void ProcessCoordinatorMQ::createInbox() {
+void BoostMqControlPlane::createInbox() {
     if (_isLeader)
         return;
 
@@ -188,7 +188,7 @@ void ProcessCoordinatorMQ::createInbox() {
 /* Major operation: Tell the leader that this peer has created its queues and is ready for
  * assignment and start. The peer sends its own ID and retries short timed sends so a temporarily
  * full queue does not block forever. */
-void ProcessCoordinatorMQ::sendReady() {
+void BoostMqControlPlane::sendReady() {
     if (_isLeader)
         return;
 
@@ -217,8 +217,8 @@ void ProcessCoordinatorMQ::sendReady() {
 /* Major operation: Hold the leader at the startup barrier until every expected peer ID has reported
  * ready exactly once. Invalid IDs or message sizes fail startup, while duplicate IDs are logged and
  * ignored. */
-void ProcessCoordinatorMQ::waitForAllReady(std::vector<interfaceId>& readyPeerIds,
-                                           bool& readyTimedOut) {
+void BoostMqControlPlane::waitForAllReady(std::vector<interfaceId>& readyPeerIds,
+                                          bool& readyTimedOut) {
     if (!_isLeader)
         return;
 
@@ -278,7 +278,7 @@ void ProcessCoordinatorMQ::waitForAllReady(std::vector<interfaceId>& readyPeerId
 
 /* Major operation: Send the normal start signal to every peer control inbox. Peers begin their
  * algorithm work only after receiving this signal. */
-void ProcessCoordinatorMQ::broadcastStart() {
+void BoostMqControlPlane::broadcastStart() {
     if (!_isLeader)
         return;
 
@@ -306,7 +306,7 @@ void ProcessCoordinatorMQ::broadcastStart() {
 
 /* Major operation: Send the normal stop signal to every peer after the leader has received all
  * expected done notifications.  */
-void ProcessCoordinatorMQ::broadcastStop() {
+void BoostMqControlPlane::broadcastStop() {
     if (!_isLeader)
         return;
 
@@ -334,7 +334,7 @@ void ProcessCoordinatorMQ::broadcastStop() {
 
 /* Major recovery operation: Try to stop every peer after a timeout or other failure. Missing or
  * full queues are logged instead of throwing, so cleanup can continue for the remaining peers. */
-void ProcessCoordinatorMQ::broadcastStopBestEffort() {
+void BoostMqControlPlane::broadcastStopBestEffort() {
     if (!_isLeader)
         return;
 
@@ -361,7 +361,7 @@ void ProcessCoordinatorMQ::broadcastStopBestEffort() {
  * Major operation: Block a peer until its control inbox receives the start
  * signal. Reject a message with the wrong size or trigger value.
  */
-void ProcessCoordinatorMQ::waitForStart() {
+void BoostMqControlPlane::waitForStart() {
     if (_isLeader)
         return;
 
@@ -392,7 +392,7 @@ void ProcessCoordinatorMQ::waitForStart() {
 
 /* Major operation: Serialize and send one topology assignment to each peer's control inbox. Fail
  * before sending an assignment that is larger than the queue's configured message size. */
-void ProcessCoordinatorMQ::sendAssignments(const std::vector<PeerAssignment>& assignments) {
+void BoostMqControlPlane::sendAssignments(const std::vector<PeerAssignment>& assignments) {
     if (!_isLeader)
         return;
 
@@ -439,7 +439,7 @@ void ProcessCoordinatorMQ::sendAssignments(const std::vector<PeerAssignment>& as
 
 /* Major operation: Wait for this peer's serialized topology assignment, decode it, and return it as
  * a one-item list for the peer startup code. */
-std::vector<PeerAssignment> ProcessCoordinatorMQ::waitForAssignments() {
+std::vector<PeerAssignment> BoostMqControlPlane::waitForAssignments() {
     if (_isLeader)
         return {};
 
@@ -468,7 +468,7 @@ std::vector<PeerAssignment> ProcessCoordinatorMQ::waitForAssignments() {
  * Other control messages are ignored. After stop arrives, the peer waits for
  * the leader to remove its control queue before releasing its local handle.
  */
-void ProcessCoordinatorMQ::waitForStop() {
+void BoostMqControlPlane::waitForStop() {
     if (_isLeader)
         return;
 
@@ -507,7 +507,7 @@ void ProcessCoordinatorMQ::waitForStop() {
  * all shared and peer queues; a peer may remove only its own queues. Completion
  * tracking is also reset so it cannot leak into the next test.
  */
-void ProcessCoordinatorMQ::cleanUp() {
+void BoostMqControlPlane::cleanUp() {
     if (_isLeader) { // only leader should remove mq_barrier and all peer queues
         message_queue::remove("mq_barrier");
         message_queue::remove("mq_done");
@@ -525,11 +525,11 @@ void ProcessCoordinatorMQ::cleanUp() {
 }
 
 /* Utility: Report whether this process has been asked to stop its current work. */
-bool ProcessCoordinatorMQ::shouldStop() const { return _stopSignal.load(); }
+bool BoostMqControlPlane::shouldStop() const { return _stopSignal.load(); }
 
 /* Utility: Check the peer's control queue without blocking so a STOP sent during protocol
  * execution can interrupt the time-based loop. */
-bool ProcessCoordinatorMQ::pollForStop() {
+bool BoostMqControlPlane::pollForStop() {
     if (_isLeader || _stopSignal.load())
         return _stopSignal.load();
     if (!_myControlInbox)
@@ -553,11 +553,11 @@ bool ProcessCoordinatorMQ::pollForStop() {
 }
 
 /* Utility: Return the stop policy selected for the current experiment. */
-StopMode ProcessCoordinatorMQ::stopMode() const { return _stopMode; }
+StopMode BoostMqControlPlane::stopMode() const { return _stopMode; }
 
 /* Major operation: Mark this process as stopping. The atomic exchange makes repeated requests
  * harmless, and the optional reason is written to the log. */
-void ProcessCoordinatorMQ::requestStop(const std::string& reason) {
+void BoostMqControlPlane::requestStop(const std::string& reason) {
     const bool alreadyStopping = _stopSignal.exchange(true);
     if (alreadyStopping)
         return;
@@ -569,7 +569,7 @@ void ProcessCoordinatorMQ::requestStop(const std::string& reason) {
 }
 
 /* Major operation: Send one peer lifecycle event to the leader-owned completion queue. */
-void ProcessCoordinatorMQ::notifyPeerEvent(interfaceId id, PeerCompletionEvent event) {
+void BoostMqControlPlane::notifyPeerEvent(interfaceId id, PeerCompletionEvent event) {
     if (id == NO_PEER_ID)
         return;
 
@@ -598,22 +598,22 @@ void ProcessCoordinatorMQ::notifyPeerEvent(interfaceId id, PeerCompletionEvent e
                              " to mq_done");
 }
 
-void ProcessCoordinatorMQ::notifyBrbDelivered(interfaceId id) {
+void BoostMqControlPlane::notifyBrbDelivered(interfaceId id) {
     notifyPeerEvent(id, PeerCompletionEvent::BrbDelivered);
 }
 
-void ProcessCoordinatorMQ::notifyPeerStopped(interfaceId id) {
+void BoostMqControlPlane::notifyPeerStopped(interfaceId id) {
     notifyPeerEvent(id, PeerCompletionEvent::ProcessDone);
 }
 
-void ProcessCoordinatorMQ::notifyPeerFailed(interfaceId id) {
+void BoostMqControlPlane::notifyPeerFailed(interfaceId id) {
     notifyPeerEvent(id, PeerCompletionEvent::ProcessFailed);
 }
 
 /* Major operation: Wait until every expected peer reports done or one reports failure. Invalid and
  * duplicate IDs are ignored. The returned value lists the completed and failed peers and says
  * whether the wait timed out. */
-PeerCompletionResult ProcessCoordinatorMQ::waitForAllDone(
+PeerCompletionResult BoostMqControlPlane::waitForAllDone(
     std::chrono::milliseconds timeout, const std::vector<interfaceId>& correctPeerIds,
     std::optional<std::chrono::steady_clock::time_point> protocolStartTime) {
     PeerCompletionResult result;
@@ -707,6 +707,6 @@ PeerCompletionResult ProcessCoordinatorMQ::waitForAllDone(
 
 /* Utility: Destroy this process's coordinator object. Queue removal is handled explicitly by
  * cleanUp(), so the destructor has no extra work. */
-ProcessCoordinatorMQ::~ProcessCoordinatorMQ() {}
+BoostMqControlPlane::~BoostMqControlPlane() {}
 
 } // namespace quantas

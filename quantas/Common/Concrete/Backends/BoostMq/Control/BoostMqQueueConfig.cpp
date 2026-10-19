@@ -1,4 +1,4 @@
-#include "QueueConfig.hpp"
+#include "BoostMqQueueConfig.hpp"
 #include "quantas/Common/Logger.hpp"
 #include <algorithm>
 #include <boost/archive/binary_oarchive.hpp>

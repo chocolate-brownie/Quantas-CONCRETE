@@ -11,8 +11,8 @@ For requirements, how to run an experiment, and the optional JSON settings, see 
 | `Entrypoints/runBoostMq.sh` | Launcher. Starts the leader and one peer process per peer for each experiment, stops them on failure or interruption, and removes the queues. Usage: `runBoostMq.sh INPUTFILE LEADER_EXE PEER_EXE RESOURCE_DIR`. |
 | `BoostMqBackend.*` | The BoostMq child of `Backend`: reads the `boostMq` settings, runs the preflight checks, and creates the control plane and the transports below. |
 | `Transport/NetworkInterfaceConcreteMQ.*` | Child of `NetworkInterface` and `MeasuredTransport`. Algorithm messages: serialises `Packet`s into the neighbours' data queues and reads the peer's own data queue. Counts transport metrics. |
-| `Control/QueueConfig.*` | Reads the optional `boostMq` JSON settings and checks them; before a run, it checks that queues of the requested size can be created (`preflightBoostMqQueues`). |
-| `Control/ProcessCoordinatorMQ.*` | Child of `ControlPlane`. Control messages between the leader and the peers: ready, assignment, start, delivered, stop, done. |
+| `Control/BoostMqQueueConfig.*` | Reads the optional `boostMq` JSON settings and checks them; before a run, it checks that queues of the requested size can be created (`preflightBoostMqQueues`). |
+| `Control/BoostMqControlPlane.*` | Child of `ControlPlane`. Control messages between the leader and the peers: ready, assignment, start, delivered, stop, done. |
 
 Backend-independent pieces are in `quantas/Common/Concrete/Runtime/`:
 

@@ -1,5 +1,5 @@
 // Parent class for the control plane: ready, assignments, start, delivered, stop, done (leader and
-// peer side). LeaderMain.cpp and PeerMain.cpp call these; ProcessCoordinatorMQ is the BoostMq child.
+// peer side). LeaderMain.cpp and PeerMain.cpp call these; BoostMqControlPlane is the BoostMq child.
 
 #ifndef QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_CONTROLPLANE_HPP
 #define QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_CONTROLPLANE_HPP

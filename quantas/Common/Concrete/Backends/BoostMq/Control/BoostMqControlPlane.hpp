@@ -1,7 +1,7 @@
-#ifndef PROCESS_COORDINATOR_MQ_HPP
-#define PROCESS_COORDINATOR_MQ_HPP
+#ifndef QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_CONTROL_BOOSTMQCONTROLPLANE_HPP
+#define QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_CONTROL_BOOSTMQCONTROLPLANE_HPP
 
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/QueueConfig.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqQueueConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Interfaces/ControlPlane.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/NetworkInterface.hpp" // IWYU pragma: keep
@@ -24,7 +24,7 @@ struct PeerCompletionMessage {
 
 /* BoostMq child of ControlPlane: control messages travel through Boost.Interprocess queues in
  * /dev/shm (mq_barrier, mq_done, peer_<id>_control). */
-class ProcessCoordinatorMQ : public ControlPlane {
+class BoostMqControlPlane : public ControlPlane {
   private:
     /* -------------------- Experiment/process identity context --------------------
     Set once per experiment via configureExperiment(...). This identifies role,
@@ -57,11 +57,11 @@ class ProcessCoordinatorMQ : public ControlPlane {
     /* -------------------- Lifetime --------------------
     One coordinator per leader or peer process, created by its main(). Not copyable: it owns the
     process's control queues. */
-    ProcessCoordinatorMQ() = default;
-    explicit ProcessCoordinatorMQ(const BoostMqQueueConfig& queueConfig);
-    ~ProcessCoordinatorMQ() override;
-    ProcessCoordinatorMQ(const ProcessCoordinatorMQ&) = delete;
-    ProcessCoordinatorMQ& operator=(const ProcessCoordinatorMQ&) = delete;
+    BoostMqControlPlane() = default;
+    explicit BoostMqControlPlane(const BoostMqQueueConfig& queueConfig);
+    ~BoostMqControlPlane() override;
+    BoostMqControlPlane(const BoostMqControlPlane&) = delete;
+    BoostMqControlPlane& operator=(const BoostMqControlPlane&) = delete;
 
     /* -------------------- Configuration API --------------------
     Primary entry point used by MQ runtimes to bind this coordinator to one

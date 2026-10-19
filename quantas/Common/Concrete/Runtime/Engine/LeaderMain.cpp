@@ -142,7 +142,7 @@ int main(int argc, char* argv[]) {
         return 1;
 
     /* Load and validate the top-level configuration before acquiring any MQ  resources or starting
-     * an experiment. */
+leadermain     * an experiment. */
     auto config = parseAndLoadConfig(cli->inputPath);
     if (!config)
         return 1;
@@ -174,7 +174,7 @@ int main(int argc, char* argv[]) {
             /* Create the experiment's backend ("backend" in the JSON, default "boostMq") and let
              * it read its own settings. */
             const auto backend =
-                quantas::BackendFactory::makeBackend(experiment.value("backend", "boostMq"));
+                quantas::BackendFactory::makeBackend(experiment.value("backend", "zMq"));
             backend->configure(experiment, exp.initialPeers);
 
             /* Build the selected topology. The result contains one assignment per peer with its
