@@ -52,7 +52,7 @@ void NetworkInterfaceZMq::configure(interfaceId id, std::set<interfaceId> neighb
 /**
  * @brief Generates a transport address for processes running on the same machine
  * @param id identifies one peer in the network
- * @return ipc:// is a ZeroMQ transport for processes that run on the same machine. */
+ * @return endPoint ipc:// is a ZeroMQ transport for processes that run on the same machine. */
 std::string NetworkInterfaceZMq::endpointFor(interfaceId id) {
     std::string endPoint = "ipc:///tmp/quantas_zmq_peer_" + std::to_string(id) + ".ipc";
     return endPoint;

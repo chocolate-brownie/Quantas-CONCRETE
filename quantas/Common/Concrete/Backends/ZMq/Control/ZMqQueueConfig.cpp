@@ -26,11 +26,11 @@ ZMqQueueConfig parseZMqConfig(const nlohmann::json& experiment, int initialPeers
     return config;
 }
 
-void preflightZMqQueues(const ZMqQueueConfig& queueConfig, std::size_t experimentIndex) { return; }
-
 void validateZMqAssignmentPayloads(const std::vector<PeerAssignment>& assignments,
                                    const ZMqQueueConfig& queueConfig, std::size_t experimentIndex) {
     return;
 }
+
+void preflightZMqQueues(const ZMqQueueConfig& queueConfig, std::size_t experimentIndex) { return; }
 
 } // namespace quantas
