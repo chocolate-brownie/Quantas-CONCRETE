@@ -1,5 +1,5 @@
 // BoostMq child of Backend: ties together BoostMqControlPlane (control plane) and
-// NetworkInterfaceConcreteMQ (transport), both configured from the experiment's "boostMq" settings.
+// NetworkInterfaceBMq (transport), both configured from the experiment's "boostMq" settings.
 
 #ifndef QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_BOOSTMQBACKEND_HPP
 #define QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_BOOSTMQBACKEND_HPP
@@ -14,7 +14,7 @@ class BoostMqBackend : public Backend {
     BoostMqQueueConfig _queueConfig;
 
   public:
-    void configure(const nlohmann::json& experiment, int peerCount) override;
+    void loadSettings(const nlohmann::json& experiment, int peerCount) override;
     void preflight(const std::vector<PeerAssignment>& assignments,
                    std::size_t experimentIndex) override;
     std::unique_ptr<ControlPlane> makeControlPlane() override;

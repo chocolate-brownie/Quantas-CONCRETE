@@ -1,5 +1,5 @@
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.hpp"
-#include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.hpp"
 #include "quantas/Common/Concrete/Runtime/Logging/OutputPaths.hpp"
 #include "quantas/Common/Concrete/Runtime/Metrics/TransportMetrics.hpp"
 #include <boost/interprocess/ipc/message_queue.hpp>
@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
-        quantas::NetworkInterfaceConcreteMQ networkInterface;
+        quantas::NetworkInterfaceBMq networkInterface;
         networkInterface.configure(kSenderId, {kBlockedReceiverId}, queueConfig.dataSendTimeoutMs);
 
         try {

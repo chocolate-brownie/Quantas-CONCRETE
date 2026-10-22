@@ -1,4 +1,4 @@
-#include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.hpp"
 #include "quantas/Common/Logger.hpp"
 #include "quantas/Common/Packet.hpp"
 #include <boost/archive/binary_iarchive.hpp>
@@ -21,18 +21,17 @@ namespace {
 std::string peerDataQueueName(interfaceId id) { return "peer_" + std::to_string(id) + "_data"; }
 } // namespace
 
-NetworkInterfaceConcreteMQ::NetworkInterfaceConcreteMQ() = default;
+NetworkInterfaceBMq::NetworkInterfaceBMq() = default;
 
-NetworkInterfaceConcreteMQ::NetworkInterfaceConcreteMQ(interfaceId pubId)
-    : NetworkInterfaceConcreteMQ(pubId, pubId) {}
+NetworkInterfaceBMq::NetworkInterfaceBMq(interfaceId pubId) : NetworkInterfaceBMq(pubId, pubId) {}
 
-NetworkInterfaceConcreteMQ::NetworkInterfaceConcreteMQ(interfaceId pubId, interfaceId internalId)
+NetworkInterfaceBMq::NetworkInterfaceBMq(interfaceId pubId, interfaceId internalId)
     : NetworkInterface(pubId, internalId) {}
 
-NetworkInterfaceConcreteMQ::~NetworkInterfaceConcreteMQ() { clearAll(); }
+NetworkInterfaceBMq::~NetworkInterfaceBMq() { clearAll(); }
 
-void NetworkInterfaceConcreteMQ::configure(interfaceId id, std::set<interfaceId> neighbors,
-                                           std::size_t dataSendTimeoutMs) {
+void NetworkInterfaceBMq::configure(interfaceId id, std::set<interfaceId> neighbors,
+                                    std::size_t dataSendTimeoutMs) {
     _publicId = id;
     _internalId = id;
     _neighbors = neighbors;
@@ -46,6 +45,7 @@ void NetworkInterfaceConcreteMQ::configure(interfaceId id, std::set<interfaceId>
         neighborList << neighbor;
         first = false;
     }
+
     QUANTAS_LOG_INFO("topology") << "configured MQ peer " << _publicId << " neighbors=["
                                  << neighborList.str() << "]";
 
@@ -60,7 +60,7 @@ void NetworkInterfaceConcreteMQ::configure(interfaceId id, std::set<interfaceId>
   → build Packet (source, target, msg)
   → write Packet to boost::archive::binary_oarchive backed by std::stringstream
   → send stringstream's bytes over MQ */
-void NetworkInterfaceConcreteMQ::unicastTo(nlohmann::json msg, const interfaceId& dest) {
+void NetworkInterfaceBMq::unicastTo(nlohmann::json msg, const interfaceId& dest) {
     if (_neighbors.find(dest) == _neighbors.end())
         return;
     Packet p;
@@ -111,7 +111,7 @@ void NetworkInterfaceConcreteMQ::unicastTo(nlohmann::json msg, const interfaceId
   → wrap bytes in std::stringstream
   → read Packet via boost::archive::binary_iarchive
   → push Packet into _inStream */
-void NetworkInterfaceConcreteMQ::receive() {
+void NetworkInterfaceBMq::receive() {
     try {
         std::vector<char> buffer(_myInbox->get_max_msg_size());
         unsigned int priority;
@@ -149,17 +149,17 @@ void NetworkInterfaceConcreteMQ::receive() {
     }
 }
 
-void NetworkInterfaceConcreteMQ::clearAll() { NetworkInterface::clearAll(); }
+void NetworkInterfaceBMq::clearAll() { NetworkInterface::clearAll(); }
 
-TransportMetrics NetworkInterfaceConcreteMQ::transportMetrics() const { return _transportMetrics; }
+TransportMetrics NetworkInterfaceBMq::transportMetrics() const { return _transportMetrics; }
 
-std::size_t NetworkInterfaceConcreteMQ::getPendingMessageCount() const {
+std::size_t NetworkInterfaceBMq::getPendingMessageCount() const {
     if (!_myInbox.has_value())
         return 0;
 
     return _myInbox->get_num_msg();
 }
 
-void NetworkInterfaceConcreteMQ::resetTransportMetrics() { _transportMetrics = {}; }
+void NetworkInterfaceBMq::resetTransportMetrics() { _transportMetrics = {}; }
 
 } // namespace quantas

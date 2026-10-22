@@ -12,10 +12,9 @@ namespace quantas {
 std::unique_ptr<Backend> BackendFactory::makeBackend(const std::string& name) {
     if (name == "boostMq")
         return std::make_unique<BoostMqBackend>();
-    else if (name == "zMq")
+    if (name == "zeroMq")
         return std::make_unique<ZMqBackend>();
-    else
-        throw std::runtime_error("Unknown backend: " + name);
+    throw std::runtime_error("Unknown backend: " + name);
 }
 
 } // namespace quantas

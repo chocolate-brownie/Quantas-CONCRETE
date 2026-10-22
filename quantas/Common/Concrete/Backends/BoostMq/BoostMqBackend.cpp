@@ -2,12 +2,12 @@
 
 #include "quantas/Common/Concrete/Backends/BoostMq/BoostMqBackend.hpp"
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.hpp"
-#include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.hpp"
 
 namespace quantas {
 
 /* Read the optional "boostMq" settings, or the defaults when they are not in the JSON. */
-void BoostMqBackend::configure(const nlohmann::json& experiment, int peerCount) {
+void BoostMqBackend::loadSettings(const nlohmann::json& experiment, int peerCount) {
     _queueConfig = parseBoostMqConfig(experiment, peerCount);
 }
 
@@ -25,7 +25,7 @@ std::unique_ptr<ControlPlane> BoostMqBackend::makeControlPlane() {
 
 /* Bind a new queue transport to the peer's ID and neighbours. */
 std::unique_ptr<NetworkInterface> BoostMqBackend::makeTransport(const PeerAssignment& assignment) {
-    auto transport = std::make_unique<NetworkInterfaceConcreteMQ>();
+    auto transport = std::make_unique<NetworkInterfaceBMq>();
     transport->configure(assignment.id, assignment.neighbors, _queueConfig.dataSendTimeoutMs);
     return transport;
 }

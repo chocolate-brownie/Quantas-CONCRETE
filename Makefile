@@ -65,11 +65,14 @@ MQ_SRCS := $(COMMON_SRCS) \
 	quantas/Common/Concrete/Backends/BackendFactory.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/BoostMqBackend.cpp \
 	quantas/Common/Concrete/Backends/ZMq/ZMqBackend.cpp \
+	quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.cpp \
+	quantas/Common/Concrete/Backends/ZMq/Control/ZMqControlPlane.cpp \
+	quantas/Common/Concrete/Backends/ZMq/Transport/NetworkInterfaceZMq.cpp \
 	quantas/Common/Concrete/Runtime/Config/RuntimeConfig.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqQueueConfig.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.cpp \
 	quantas/Common/Concrete/Runtime/Topology/TopologyPlanner.cpp \
-	quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.cpp \
+	quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.cpp \
 	quantas/Common/Abstract/Channel.cpp \
 	quantas/Common/Concrete/Backends/TCP/NetworkInterfaceConcrete.cpp \
 	quantas/Common/Concrete/Backends/TCP/ProcessCoordinator.cpp \
@@ -80,11 +83,14 @@ MQ_LEADER_SRCS := $(COMMON_SRCS) \
 	quantas/Common/Concrete/Backends/BackendFactory.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/BoostMqBackend.cpp \
 	quantas/Common/Concrete/Backends/ZMq/ZMqBackend.cpp \
+	quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.cpp \
+	quantas/Common/Concrete/Backends/ZMq/Control/ZMqControlPlane.cpp \
+	quantas/Common/Concrete/Backends/ZMq/Transport/NetworkInterfaceZMq.cpp \
 	quantas/Common/Concrete/Runtime/Config/RuntimeConfig.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqQueueConfig.cpp \
 	quantas/Common/Concrete/Runtime/Topology/TopologyPlanner.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.cpp \
-	quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.cpp \
+	quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.cpp \
 	quantas/Common/Abstract/Channel.cpp
 
 # Only commands that build or run algorithm code need to read INPUTFILE.
@@ -108,7 +114,7 @@ endif
 CXX := g++
 CXXFLAGS := -pthread -std=c++17 -I.
 LDFLAGS :=
-MQ_LDLIBS := -lboost_serialization -lrt
+MQ_LDLIBS := -lboost_serialization -lrt -lzmq
 GCC_VERSION := $(shell $(CXX) $(CXXFLAGS) -dumpversion)
 GCC_MIN_VERSION := 8
 MQ_DEP_CHECK := /tmp/quantas_mq_dep_check
@@ -460,7 +466,7 @@ build/tests/mq_queue_config_test.exe: quantas/Tests/boostMqQueueConfigTest.cpp \
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
 
 build/tests/mq_transport_metrics_test.exe: quantas/Tests/boostMqTransportMetricsTest.cpp \
-		quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.cpp \
+		quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.cpp \
 		quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
@@ -481,7 +487,7 @@ build/tests/mq_invalid_output_peer.exe: quantas/Tests/boostMqInvalidOutputPeer.c
 build/tests/mq_data_delivery_failure_peer.exe: \
 		quantas/Tests/boostMqDataDeliveryFailurePeer.cpp \
 		quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.cpp \
-		quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.cpp \
+		quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.cpp \
 		quantas/Common/LoggingSupport.cpp quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)

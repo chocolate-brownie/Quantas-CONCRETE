@@ -1,4 +1,4 @@
-#include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceConcreteMQ.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.hpp"
 #include "quantas/Common/Packet.hpp"
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/interprocess/ipc/message_queue.hpp>
@@ -35,7 +35,7 @@ int main() {
     queue.send(bytes.data(), bytes.size(), 0);
     queue.send(bytes.data(), bytes.size(), 0);
 
-    quantas::NetworkInterfaceConcreteMQ networkInterface;
+    quantas::NetworkInterfaceBMq networkInterface;
     networkInterface.configure(peerId, {});
     networkInterface.receive();
 

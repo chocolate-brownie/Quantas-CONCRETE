@@ -254,7 +254,7 @@ int main(int argc, char** argv) {
          * its own settings, and create the control plane that talks to the leader. */
         const auto backend =
             quantas::BackendFactory::makeBackend(experiment.value("backend", "boostMq"));
-        backend->configure(experiment, exp.initialPeers);
+        backend->loadSettings(experiment, exp.initialPeers);
         controlPlane = backend->makeControlPlane();
 
         /* Choose the results location and use the peer ID to keep different peer processes from

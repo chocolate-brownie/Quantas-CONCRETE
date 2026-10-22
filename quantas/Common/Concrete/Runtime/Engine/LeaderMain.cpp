@@ -175,7 +175,7 @@ leadermain     * an experiment. */
              * it read its own settings. */
             const auto backend =
                 quantas::BackendFactory::makeBackend(experiment.value("backend", "zeroMq"));
-            backend->configure(experiment, exp.initialPeers);
+            backend->loadSettings(experiment, exp.initialPeers);
 
             /* Build the selected topology. The result contains one assignment per peer with its
              * ID, topology type, and neighbour IDs. Then let the backend check, before any worker

@@ -1,4 +1,5 @@
-#include "ZMq/Control/ZMqQueueConfig.hpp"
+#include "quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.hpp"
+#include <stdexcept>
 
 /* TODO:
  * to code this file you need to setup the zmq tranportation layer first and check whether a
@@ -9,6 +10,8 @@ namespace quantas {
 ZMqQueueConfig parseZMqConfig(const nlohmann::json& experiment, int initialPeers) {
     ZMqQueueConfig config;
 
+    /* check for a keyname 'zeroMq' and any settings under it, if nothing is specified return
+     * default settings */
     if (!experiment.contains("zeroMq"))
         return config;
 

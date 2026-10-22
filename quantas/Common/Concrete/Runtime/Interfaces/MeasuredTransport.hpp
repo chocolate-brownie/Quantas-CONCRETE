@@ -1,5 +1,5 @@
 // Interface for transport counters that a backend's NetworkInterface child also implements.
-// PeerMain.cpp reads the counters through it; NetworkInterfaceConcreteMQ is the BoostMq child.
+// PeerMain.cpp reads the counters through it; NetworkInterfaceBMq is the BoostMq child.
 
 #ifndef QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_MEASUREDTRANSPORT_HPP
 #define QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_MEASUREDTRANSPORT_HPP

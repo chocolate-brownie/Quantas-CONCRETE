@@ -10,7 +10,7 @@ For requirements, how to run an experiment, and the optional JSON settings, see 
 |---|---|
 | `Entrypoints/runBoostMq.sh` | Launcher. Starts the leader and one peer process per peer for each experiment, stops them on failure or interruption, and removes the queues. Usage: `runBoostMq.sh INPUTFILE LEADER_EXE PEER_EXE RESOURCE_DIR`. |
 | `BoostMqBackend.*` | The BoostMq child of `Backend`: reads the `boostMq` settings, runs the preflight checks, and creates the control plane and the transports below. |
-| `Transport/NetworkInterfaceConcreteMQ.*` | Child of `NetworkInterface` and `MeasuredTransport`. Algorithm messages: serialises `Packet`s into the neighbours' data queues and reads the peer's own data queue. Counts transport metrics. |
+| `Transport/NetworkInterfaceBMq.*` | Child of `NetworkInterface` and `MeasuredTransport`. Algorithm messages: serialises `Packet`s into the neighbours' data queues and reads the peer's own data queue. Counts transport metrics. |
 | `Control/BoostMqQueueConfig.*` | Reads the optional `boostMq` JSON settings and checks them; before a run, it checks that queues of the requested size can be created (`preflightBoostMqQueues`). |
 | `Control/BoostMqControlPlane.*` | Child of `ControlPlane`. Control messages between the leader and the peers: ready, assignment, start, delivered, stop, done. |
 
@@ -93,7 +93,7 @@ A send to a full data queue waits `boostMq.dataSendTimeoutMs` and then fails the
 
 ## Algorithm hooks
 
-Any peer registered with `PeerRegistry` runs unchanged: the peer process creates it with `PeerRegistry::makePeer` and replaces its network interface with `NetworkInterfaceConcreteMQ`. Two optional `Peer` overrides add Concrete behaviour:
+Any peer registered with `PeerRegistry` runs unchanged: the peer process creates it with `PeerRegistry::makePeer` and replaces its network interface with `NetworkInterfaceBMq`. Two optional `Peer` overrides add Concrete behaviour:
 
 - `nlohmann::json collectAlgoMetrics() const`: per-peer metrics written to the peer report. The report writer combines them into `algoReliability` for `CPAPeer` and `DolevPeer`.
 - `bool localProtocolCompleted() const`: return `true` once the peer is done (for example, delivered). It is used for delivery reporting and early stopping.

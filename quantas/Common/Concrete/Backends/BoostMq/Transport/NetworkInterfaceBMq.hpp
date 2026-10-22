@@ -1,5 +1,5 @@
-#ifndef NETWORK_INTERFACE_CONCRETE_MQ_HPP
-#define NETWORK_INTERFACE_CONCRETE_MQ_HPP
+#ifndef QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_TRANSPORT_NETWORKINTERFACEBMQ_HPP
+#define QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_TRANSPORT_NETWORKINTERFACEBMQ_HPP
 
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqQueueConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Interfaces/MeasuredTransport.hpp"
@@ -15,7 +15,7 @@
 namespace quantas {
 
 /* BoostMq transport: algorithm messages travel through each peer's peer_<id>_data queue. */
-class NetworkInterfaceConcreteMQ : public NetworkInterface, public MeasuredTransport {
+class NetworkInterfaceBMq : public NetworkInterface, public MeasuredTransport {
   private:
     std::atomic<bool> _configured{false};
     std::optional<boost::interprocess::message_queue> _myInbox;
@@ -24,10 +24,10 @@ class NetworkInterfaceConcreteMQ : public NetworkInterface, public MeasuredTrans
     TransportMetrics _transportMetrics;
 
   public:
-    NetworkInterfaceConcreteMQ();
-    explicit NetworkInterfaceConcreteMQ(interfaceId pubId);
-    NetworkInterfaceConcreteMQ(interfaceId pubId, interfaceId internalId);
-    ~NetworkInterfaceConcreteMQ() override;
+    NetworkInterfaceBMq();
+    explicit NetworkInterfaceBMq(interfaceId pubId);
+    NetworkInterfaceBMq(interfaceId pubId, interfaceId internalId);
+    ~NetworkInterfaceBMq() override;
 
     void
     configure(interfaceId id, std::set<interfaceId> neighbors,
@@ -48,4 +48,4 @@ class NetworkInterfaceConcreteMQ : public NetworkInterface, public MeasuredTrans
 };
 } // namespace quantas
 
-#endif
+#endif // QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_TRANSPORT_NETWORKINTERFACEBMQ_HPP

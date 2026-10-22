@@ -1,0 +1,20 @@
+{
+  "algorithms": ["AltBitPeer/AltBitPeer.cpp"],
+  "experiments": [
+    {
+      "backend": "zeroMq",
+      "logFile": "build/tests/zmqDebug.txt",
+      "threadCount": 1,
+      "parameters": {
+        "timeOutRate": 2
+      },
+      "topology": {
+        "type": "complete",
+        "initialPeers": 2,
+        "initialPeerType": "AltBitPeer"
+      },
+      "tests": 1,
+      "rounds": 10
+    }
+  ]
+}

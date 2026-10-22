@@ -20,7 +20,7 @@ class Backend {
 
     /* Read this backend's settings from the experiment (e.g. "boostMq": queue sizes, timeouts).
      * Called by the leader and by every peer, before any other function. */
-    virtual void configure(const nlohmann::json& experiment, int peerCount) = 0;
+    virtual void loadSettings(const nlohmann::json& experiment, int peerCount) = 0;
 
     /* Leader only: check, before a run, that this backend can run the experiment (resources,
      * message sizes). Throws std::runtime_error when it cannot. */
