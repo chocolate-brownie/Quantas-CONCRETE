@@ -3,7 +3,7 @@
 #ifndef QUANTAS_COMMON_CONCRETE_RUNTIME_ENGINE_RUNLOOP_HPP
 #define QUANTAS_COMMON_CONCRETE_RUNTIME_ENGINE_RUNLOOP_HPP
 
-#include "quantas/Common/Concrete/Runtime/Interfaces/ControlPlane.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/Coordinator.hpp"
 #include "quantas/Common/Peer.hpp"
 #include <chrono>
 #include <vector>
@@ -14,7 +14,7 @@ namespace quantas {
  * peer's first delivery to the leader and returns the time it took (zero if it never delivered). */
 std::chrono::steady_clock::duration runForDuration(std::vector<Peer*>& localPeers,
                                                    std::chrono::milliseconds duration,
-                                                   ControlPlane& controlPlane);
+                                                   Coordinator& coordinator);
 
 } // namespace quantas
 

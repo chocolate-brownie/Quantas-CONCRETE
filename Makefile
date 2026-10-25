@@ -66,11 +66,11 @@ MQ_SRCS := $(COMMON_SRCS) \
 	quantas/Common/Concrete/Backends/BoostMq/BoostMqBackend.cpp \
 	quantas/Common/Concrete/Backends/ZMq/ZMqBackend.cpp \
 	quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.cpp \
-	quantas/Common/Concrete/Backends/ZMq/Control/ZMqControlPlane.cpp \
+	quantas/Common/Concrete/Backends/ZMq/Control/ZMqCoordinator.cpp \
 	quantas/Common/Concrete/Backends/ZMq/Transport/NetworkInterfaceZMq.cpp \
 	quantas/Common/Concrete/Runtime/Config/RuntimeConfig.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqQueueConfig.cpp \
-	quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.cpp \
+	quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.cpp \
 	quantas/Common/Concrete/Runtime/Topology/TopologyPlanner.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.cpp \
 	quantas/Common/Abstract/Channel.cpp \
@@ -84,12 +84,12 @@ MQ_LEADER_SRCS := $(COMMON_SRCS) \
 	quantas/Common/Concrete/Backends/BoostMq/BoostMqBackend.cpp \
 	quantas/Common/Concrete/Backends/ZMq/ZMqBackend.cpp \
 	quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.cpp \
-	quantas/Common/Concrete/Backends/ZMq/Control/ZMqControlPlane.cpp \
+	quantas/Common/Concrete/Backends/ZMq/Control/ZMqCoordinator.cpp \
 	quantas/Common/Concrete/Backends/ZMq/Transport/NetworkInterfaceZMq.cpp \
 	quantas/Common/Concrete/Runtime/Config/RuntimeConfig.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqQueueConfig.cpp \
 	quantas/Common/Concrete/Runtime/Topology/TopologyPlanner.cpp \
-	quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.cpp \
+	quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.cpp \
 	quantas/Common/Abstract/Channel.cpp
 
@@ -441,18 +441,18 @@ build/tests/rand_test.exe: quantas/Tests/randtest.cpp
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) $^ -o $@
 
-build/tests/mq_timeout_test.exe: quantas/Tests/boostMqControlPlaneTimeoutTest.cpp \
-		quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.cpp quantas/Common/Logger.cpp | check_mq_deps
+build/tests/mq_timeout_test.exe: quantas/Tests/boostMqCoordinatorTimeoutTest.cpp \
+		quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.cpp quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS) -Wl,--wrap=shm_unlink
 
-build/tests/mq_ready_identity_test.exe: quantas/Tests/boostMqControlPlaneReadyIdentityTest.cpp \
-		quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.cpp quantas/Common/Logger.cpp | check_mq_deps
+build/tests/mq_ready_identity_test.exe: quantas/Tests/boostMqCoordinatorReadyIdentityTest.cpp \
+		quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.cpp quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
 
-build/tests/mq_control_send_test.exe: quantas/Tests/boostMqControlPlaneControlSendTest.cpp \
-		quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.cpp quantas/Common/Logger.cpp | check_mq_deps
+build/tests/mq_control_send_test.exe: quantas/Tests/boostMqCoordinatorControlSendTest.cpp \
+		quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.cpp quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
 
@@ -479,14 +479,14 @@ build/tests/mq_report_test.exe: quantas/Tests/boostMqReportWriterTest.cpp \
 	@$(CXX) $(CXXFLAGS) $(filter %.cpp,$^) -o $@ $(MQ_LDLIBS)
 
 build/tests/mq_invalid_output_peer.exe: quantas/Tests/boostMqInvalidOutputPeer.cpp \
-		quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.cpp \
+		quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.cpp \
 		quantas/Common/LoggingSupport.cpp quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
 
 build/tests/mq_data_delivery_failure_peer.exe: \
 		quantas/Tests/boostMqDataDeliveryFailurePeer.cpp \
-		quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.cpp \
+		quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.cpp \
 		quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.cpp \
 		quantas/Common/LoggingSupport.cpp quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)

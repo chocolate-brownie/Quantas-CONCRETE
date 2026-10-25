@@ -1,8 +1,8 @@
 // Parent class for the control plane: ready, assignments, start, delivered, stop, done (leader and
-// peer side). LeaderMain.cpp and PeerMain.cpp call these; BoostMqControlPlane is the BoostMq child.
+// peer side). LeaderMain.cpp and PeerMain.cpp call these; BoostMqCoordinator is the BoostMq child.
 
-#ifndef QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_CONTROLPLANE_HPP
-#define QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_CONTROLPLANE_HPP
+#ifndef QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_COORDINATOR_HPP
+#define QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_COORDINATOR_HPP
 
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include <chrono>
@@ -23,9 +23,9 @@ struct PeerCompletionResult {
     bool timedOut{false};
 };
 
-class ControlPlane {
+class Coordinator {
   public:
-    virtual ~ControlPlane() = default;
+    virtual ~Coordinator() = default;
 
     // -------------------- Both sides --------------------
     /* Bind this process to one experiment: its role (leader or peer), peer count and own ID. */
@@ -71,4 +71,4 @@ class ControlPlane {
 
 } // namespace quantas
 
-#endif // QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_CONTROLPLANE_HPP
+#endif // QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_COORDINATOR_HPP

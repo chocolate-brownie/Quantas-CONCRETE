@@ -12,12 +12,12 @@ For requirements, how to run an experiment, and the optional JSON settings, see 
 | `BoostMqBackend.*` | The BoostMq child of `Backend`: reads the `boostMq` settings, runs the preflight checks, and creates the control plane and the transports below. |
 | `Transport/NetworkInterfaceBMq.*` | Child of `NetworkInterface` and `MeasuredTransport`. Algorithm messages: serialises `Packet`s into the neighbours' data queues and reads the peer's own data queue. Counts transport metrics. |
 | `Control/BoostMqQueueConfig.*` | Reads the optional `boostMq` JSON settings and checks them; before a run, it checks that queues of the requested size can be created (`preflightBoostMqQueues`). |
-| `Control/BoostMqControlPlane.*` | Child of `ControlPlane`. Control messages between the leader and the peers: ready, assignment, start, delivered, stop, done. |
+| `Control/BoostMqCoordinator.*` | Child of `Coordinator`. Control messages between the leader and the peers: ready, assignment, start, delivered, stop, done. |
 
 Backend-independent pieces are in `quantas/Common/Concrete/Runtime/`:
 
 - `Engine/LeaderMain.cpp` (leader: validates the input, plans the topology, runs the start barrier, waits for the peers, writes `leader_report.json`), `Engine/PeerMain.cpp` (peer process: builds one algorithm peer with the backend's transport, writes its own report) and `Engine/RunLoop` (the peer loop `runForDuration`);
-- `Interfaces/` (the parent classes `Backend`, `ControlPlane`, `MeasuredTransport`), `Logging/` (`ReportWriter`, including the CPA and Dolev summaries, and `OutputPaths`), `Config/RuntimeConfig` (reads `topology`, `rounds`, `tests`, `windowMs`, `doneTimeoutMs`) and `Topology/TopologyPlanner` (builds the neighbour lists).
+- `Interfaces/` (the parent classes `Backend`, `Coordinator`, `MeasuredTransport`), `Logging/` (`ReportWriter`, including the CPA and Dolev summaries, and `OutputPaths`), `Config/RuntimeConfig` (reads `topology`, `rounds`, `tests`, `windowMs`, `doneTimeoutMs`) and `Topology/TopologyPlanner` (builds the neighbour lists).
 
 The programs pick the backend from the experiment's optional `"backend"` field (default `"boostMq"`) through `Backends/BackendFactory.cpp`.
 

@@ -11,7 +11,13 @@
 
 namespace quantas {
 
-struct ZMqQueueConfig {};
+struct ZMqQueueConfig {
+    // How long a PUSH send may wait on a full neighbour queue (ZMQ_SNDTIMEO); same default as BoostMq.
+    std::size_t dataSendTimeoutMs{10};
+    // High-water mark (ZMQ_SNDHWM / ZMQ_RCVHWM) of every data socket; same default as BoostMq.
+    // Unlike BoostMq's one shared queue, ZeroMQ applies it per connection.
+    std::size_t dataQueueCapacity{1000};
+};
 
 ZMqQueueConfig parseZMqConfig(const nlohmann::json& experiment, int initialPeers);
 void preflightZMqQueues(const ZMqQueueConfig& queueConfig, std::size_t experimentIndex);

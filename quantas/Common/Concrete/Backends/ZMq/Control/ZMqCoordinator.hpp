@@ -1,16 +1,16 @@
-// ZMq child of ControlPlane (ROUTER/DEALER, PUB/SUB, PUSH/PULL).
+// ZMq child of Coordinator (ROUTER/DEALER, PUB/SUB, PUSH/PULL).
 // Skeleton only: see quantas/Common/Concrete/architecture.drawio.
 
-#ifndef QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_CONTROL_ZMQCONTROLPLANE_HPP
-#define QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_CONTROL_ZMQCONTROLPLANE_HPP
+#ifndef QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_CONTROL_ZMQCOORDINATOR_HPP
+#define QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_CONTROL_ZMQCOORDINATOR_HPP
 
 #include "quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.hpp"
-#include "quantas/Common/Concrete/Runtime/Interfaces/ControlPlane.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/Coordinator.hpp"
 
 namespace quantas {
-class ZMqControlPlane : public ControlPlane {
+class ZMqCoordinator : public Coordinator {
   public:
-    explicit ZMqControlPlane(const ZMqQueueConfig& queueConfig) : _queueConfig(queueConfig) {}
+    explicit ZMqCoordinator(const ZMqQueueConfig& queueConfig) : _queueConfig(queueConfig) {}
 
     // Both sides
     void configureExperiment(std::size_t experimentIndex, const std::string& peerType,
@@ -44,4 +44,4 @@ class ZMqControlPlane : public ControlPlane {
 };
 } // namespace quantas
 
-#endif // QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_CONTROL_ZMQCONTROLPLANE_HPP
+#endif // QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_CONTROL_ZMQCOORDINATOR_HPP

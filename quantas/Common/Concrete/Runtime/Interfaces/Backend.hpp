@@ -1,7 +1,22 @@
+/* +--------------------------------------------------------------------------------------------+ */
+/* | /░░░░    /░/░    /█▀▀█    /░ /░    /░░░    /█▀▀█     /░░░                                  | */
+/* | │_▒ /▒   │ ▒ ▒   │ ▓▓▓▓   │ ▒▒ ▒   │//▒/   │ ▓▓▓▓    │ ▒_/                                 | */
+/* | │ ▓│ ▓   │ ▓ ▓   │_▒_/▒   │ ▓│▓▓    │ ▓    │_▒_/▒    │/_▓                                  | */
+/* | │ ████   │ ███   │ ░│ ░   │ █│ █    │ █    │ ░│ ░    /███                                  | */
+/* | │/_/▀/   │/__/   │//│//   │//│//    │//    │//│//   │/__/                                  | */
+/* |                                                                                            | */
+/* | File: Backend.hpp                                                                          | */
+/* | Organization: LIP6 Paris                                                                   | */
+/* | Author: Milan Godawatta                                                                    | */
+/* | Created: 2026-10-24 21:36                                                                  | */
+/* | Updated: 2026-10-24 21:39                                                                  | */
+/* | Description: Backend contract                                                              | */
+/* +--------------------------------------------------------------------------------------------+ */
+
 #ifndef QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_BACKEND_HPP
 #define QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_BACKEND_HPP
 
-#include "quantas/Common/Concrete/Runtime/Interfaces/ControlPlane.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/Coordinator.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/Json.hpp"
 #include "quantas/Common/NetworkInterface.hpp"
@@ -28,7 +43,7 @@ class Backend {
                            std::size_t experimentIndex) = 0;
 
     /* Create the control plane: ready, assignment, start, delivered, stop, done. */
-    virtual std::unique_ptr<ControlPlane> makeControlPlane() = 0;
+    virtual std::unique_ptr<Coordinator> makeCoordinator() = 0;
 
     /* Create the transport that carries one peer's algorithm messages. */
     virtual std::unique_ptr<NetworkInterface> makeTransport(const PeerAssignment& assignment) = 0;

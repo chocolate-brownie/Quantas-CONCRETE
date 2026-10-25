@@ -1,4 +1,4 @@
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.hpp"
 #include "quantas/Common/Concrete/Runtime/Logging/OutputPaths.hpp"
 #include <fstream>
 #include <string>
@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
     queueConfig.controlQueueCapacity = 2;
     queueConfig.dataQueueCapacity = 1;
 
-    quantas::BoostMqControlPlane coordinator;
+    quantas::BoostMqCoordinator coordinator;
     try {
         coordinator.configureExperiment(0, "ExamplePeer", false, 2, peerId,
                                         "build/tests/mqInvalidOutput.txt",

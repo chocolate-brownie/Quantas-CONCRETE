@@ -1,8 +1,8 @@
-#ifndef QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_CONTROL_BOOSTMQCONTROLPLANE_HPP
-#define QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_CONTROL_BOOSTMQCONTROLPLANE_HPP
+#ifndef QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_CONTROL_BOOSTMQCOORDINATOR_HPP
+#define QUANTAS_COMMON_CONCRETE_BACKENDS_BOOSTMQ_CONTROL_BOOSTMQCOORDINATOR_HPP
 
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqQueueConfig.hpp"
-#include "quantas/Common/Concrete/Runtime/Interfaces/ControlPlane.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/Coordinator.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/NetworkInterface.hpp" // IWYU pragma: keep
 #include <atomic>
@@ -22,9 +22,9 @@ struct PeerCompletionMessage {
     PeerCompletionEvent event{PeerCompletionEvent::ProcessDone};
 };
 
-/* BoostMq child of ControlPlane: control messages travel through Boost.Interprocess queues in
+/* BoostMq child of Coordinator: control messages travel through Boost.Interprocess queues in
  * /dev/shm (mq_barrier, mq_done, peer_<id>_control). */
-class BoostMqControlPlane : public ControlPlane {
+class BoostMqCoordinator : public Coordinator {
   private:
     /* -------------------- Experiment/process identity context --------------------
     Set once per experiment via configureExperiment(...). This identifies role,
@@ -57,11 +57,11 @@ class BoostMqControlPlane : public ControlPlane {
     /* -------------------- Lifetime --------------------
     One coordinator per leader or peer process, created by its main(). Not copyable: it owns the
     process's control queues. */
-    BoostMqControlPlane() = default;
-    explicit BoostMqControlPlane(const BoostMqQueueConfig& queueConfig);
-    ~BoostMqControlPlane() override;
-    BoostMqControlPlane(const BoostMqControlPlane&) = delete;
-    BoostMqControlPlane& operator=(const BoostMqControlPlane&) = delete;
+    BoostMqCoordinator() = default;
+    explicit BoostMqCoordinator(const BoostMqQueueConfig& queueConfig);
+    ~BoostMqCoordinator() override;
+    BoostMqCoordinator(const BoostMqCoordinator&) = delete;
+    BoostMqCoordinator& operator=(const BoostMqCoordinator&) = delete;
 
     /* -------------------- Configuration API --------------------
     Primary entry point used by MQ runtimes to bind this coordinator to one
@@ -69,7 +69,7 @@ class BoostMqControlPlane : public ControlPlane {
     void configureExperiment(size_t experimentIndex, const std::string& peerType, bool isLeader,
                              size_t totalPeers, interfaceId myId, const std::string& logFileBase,
                              StopMode stopMode, const BoostMqQueueConfig& queueConfig);
-    // ControlPlane version: uses the queue settings given to the constructor.
+    // Coordinator version: uses the queue settings given to the constructor.
     void configureExperiment(size_t experimentIndex, const std::string& peerType, bool isLeader,
                              size_t totalPeers, interfaceId myId, const std::string& logFileBase,
                              StopMode stopMode) override;
@@ -79,7 +79,7 @@ class BoostMqControlPlane : public ControlPlane {
     // -------------------- start-gate handshake protocol --------------------
     void createBarrier();
     void createInbox();
-    // ControlPlane version: createBarrier() on the leader, createInbox() on a peer.
+    // Coordinator version: createBarrier() on the leader, createInbox() on a peer.
     void openChannels() override;
     void sendReady() override;
     void waitForAllReady(std::vector<interfaceId>& readyPeerIds, bool& readyTimedOut) override;

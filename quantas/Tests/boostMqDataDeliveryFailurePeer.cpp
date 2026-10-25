@@ -1,4 +1,4 @@
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.hpp"
 #include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.hpp"
 #include "quantas/Common/Concrete/Runtime/Logging/OutputPaths.hpp"
 #include "quantas/Common/Concrete/Runtime/Metrics/TransportMetrics.hpp"
@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
     queueConfig.dataSendTimeoutMs = 25;
     queueConfig.controlSendTimeoutMs = 1000;
 
-    quantas::BoostMqControlPlane coordinator;
+    quantas::BoostMqCoordinator coordinator;
     try {
         coordinator.configureExperiment(0, "ExamplePeer", false, kTotalPeers, peerId,
                                         "build/tests/mqDataDeliveryFailure.txt",

@@ -1,6 +1,21 @@
+/* +--------------------------------------------------------------------------------------------+ */
+/* | /░░░░    /░/░    /█▀▀█    /░ /░    /░░░    /█▀▀█     /░░░                                  | */
+/* | │_▒ /▒   │ ▒ ▒   │ ▓▓▓▓   │ ▒▒ ▒   │//▒/   │ ▓▓▓▓    │ ▒_/                                 | */
+/* | │ ▓│ ▓   │ ▓ ▓   │_▒_/▒   │ ▓│▓▓    │ ▓    │_▒_/▒    │/_▓                                  | */
+/* | │ ████   │ ███   │ ░│ ░   │ █│ █    │ █    │ ░│ ░    /███                                  | */
+/* | │/_/▀/   │/__/   │//│//   │//│//    │//    │//│//   │/__/                                  | */
+/* |                                                                                            | */
+/* | File: LeaderMain.cpp                                                                       | */
+/* | Organization: LIP6 Paris                                                                   | */
+/* | Author: Milan Godawatta                                                                    | */
+/* | Created: 2026-10-24 22:22                                                                  | */
+/* | Updated: 2026-10-25 00:14                                                                  | */
+/* | Description:                                                                               | */
+/* +--------------------------------------------------------------------------------------------+ */
+
 #include "quantas/Common/Concrete/Runtime/Config/RuntimeConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Interfaces/Backend.hpp"
-#include "quantas/Common/Concrete/Runtime/Interfaces/ControlPlane.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/Coordinator.hpp"
 #include "quantas/Common/Concrete/Runtime/Logging/ReportWriter.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/TopologyPlanner.hpp"
 #include "quantas/Common/Logger.hpp"
@@ -97,7 +112,7 @@ std::vector<quantas::interfaceId> correctPeerIds(const nlohmann::json& experimen
 /* Readiness-timeout helper: Save the facts known when startup fails, ask any waiting peers to stop,
  * and remove the queues created for this test. */
 void handleReadinessTimeout(
-    bool& allTestsSucceeded, bool& experimentTimedOut, quantas::ControlPlane& coordinator,
+    bool& allTestsSucceeded, bool& experimentTimedOut, quantas::Coordinator& coordinator,
     bmqrep::TestReportInfo& testInfo, nlohmann::json& expReport, int totalPeers,
     const std::chrono::time_point<std::chrono::high_resolution_clock>& testStartTime) {
 
@@ -118,7 +133,7 @@ void handleReadinessTimeout(
 }
 
 void handleControlSendFailure(
-    bool& allTestsSucceeded, bool& experimentTimedOut, quantas::ControlPlane& coordinator,
+    bool& allTestsSucceeded, bool& experimentTimedOut, quantas::Coordinator& coordinator,
     bmqrep::TestReportInfo& testInfo, nlohmann::json& expReport,
     const std::chrono::time_point<std::chrono::high_resolution_clock>& testStartTime) {
 
@@ -155,7 +170,7 @@ leadermain     * an experiment. */
 
     /* The control plane owns the leader's rendezvous protocol and the lifecycle of its backend
      * resources. It is created by each experiment's backend below. */
-    std::unique_ptr<quantas::ControlPlane> controlPlane;
+    std::unique_ptr<quantas::Coordinator> coordinatorPtr;
 
     /* Process each configured experiment independently so failures can be  reported with the
      * corresponding experiment index. */
@@ -175,13 +190,13 @@ leadermain     * an experiment. */
              * it read its own settings. */
             const auto backend =
                 quantas::BackendFactory::makeBackend(experiment.value("backend", "zeroMq"));
-            backend->loadSettings(experiment, exp.initialPeers);
+            backend->loadSettings(experiment, exp.initialPeers); // PERF:
 
             /* Build the selected topology. The result contains one assignment per peer with its
              * ID, topology type, and neighbour IDs. Then let the backend check, before any worker
              * process starts, that it can run this experiment (the preflight check). */
             auto topology = quantas::buildTopology(exp.topology);
-            backend->preflight(topology.assignments, expIndex);
+            backend->preflight(topology.assignments, expIndex); // PERF:
 
             /* If preflight-only mode is enabled, skip execution after validation and continue with
              * the next configured experiment. */
@@ -203,9 +218,9 @@ leadermain     * an experiment. */
             const auto logFileBase = quantas::chooseLogFileBase(*config, experiment);
             const auto reportPath = bmqrep::makeLeaderReportPath(logFileBase, expIndex);
 
-            // Create the control plane and give it all the information it needs
-            controlPlane = backend->makeControlPlane();
-            quantas::ControlPlane& coordinator = *controlPlane;
+            // Create the coordinator and give it all the information it needs
+            coordinatorPtr = backend->makeCoordinator(); // TODO:
+            quantas::Coordinator& coordinator = *coordinatorPtr;
             coordinator.configureExperiment(expIndex, exp.initialPeerType, true, exp.initialPeers,
                                             quantas::NO_PEER_ID, logFileBase,
                                             quantas::StopMode::FixedRounds);
@@ -371,8 +386,8 @@ leadermain     * an experiment. */
         } catch (const std::exception& ex) {
             /* Release any partially initialized backend state and fail with the experiment index
              * when configuration or runtime work throws. */
-            if (controlPlane)
-                controlPlane->cleanUp();
+            if (coordinatorPtr)
+                coordinatorPtr->cleanUp();
             std::cerr << "error: leader failed at experiment " << expIndex << ": " << ex.what()
                       << '\n';
 

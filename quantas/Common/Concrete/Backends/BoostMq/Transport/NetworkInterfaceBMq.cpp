@@ -1,3 +1,18 @@
+/* +--------------------------------------------------------------------------------------------+ */
+/* | /░░░░    /░/░    /█▀▀█    /░ /░    /░░░    /█▀▀█     /░░░                                  | */
+/* | │_▒ /▒   │ ▒ ▒   │ ▓▓▓▓   │ ▒▒ ▒   │//▒/   │ ▓▓▓▓    │ ▒_/                                 | */
+/* | │ ▓│ ▓   │ ▓ ▓   │_▒_/▒   │ ▓│▓▓    │ ▓    │_▒_/▒    │/_▓                                  | */
+/* | │ ████   │ ███   │ ░│ ░   │ █│ █    │ █    │ ░│ ░    /███                                  | */
+/* | │/_/▀/   │/__/   │//│//   │//│//    │//    │//│//   │/__/                                  | */
+/* |                                                                                            | */
+/* | File: NetworkInterfaceBMq.cpp                                                              | */
+/* | Organization: LIP6 Paris                                                                   | */
+/* | Author: Milan Godawatta                                                                    | */
+/* | Created: 2026-10-24 21:28                                                                  | */
+/* | Updated: 2026-10-25 22:28                                                                  | */
+/* | Description:                                                                               | */
+/* +--------------------------------------------------------------------------------------------+ */
+
 #include "quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.hpp"
 #include "quantas/Common/Logger.hpp"
 #include "quantas/Common/Packet.hpp"
@@ -51,7 +66,7 @@ void NetworkInterfaceBMq::configure(interfaceId id, std::set<interfaceId> neighb
 
     std::string queueName = peerDataQueueName(id);
 
-    // BoostMqControlPlane creates the data queue before this interface opens it.
+    // BoostMqCoordinator creates the data queue before this interface opens it.
     _myInbox.emplace(boost::interprocess::open_only, queueName.c_str());
     _configured = true;
 }

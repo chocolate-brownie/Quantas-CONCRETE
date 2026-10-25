@@ -10,7 +10,7 @@ namespace quantas {
 
 std::chrono::steady_clock::duration runForDuration(std::vector<Peer*>& localPeers,
                                                    std::chrono::milliseconds duration,
-                                                   ControlPlane& controlPlane) {
+                                                   Coordinator& coordinator) {
     constexpr auto pollInterval = std::chrono::milliseconds(10);
 
     if (localPeers.size() != 1 || localPeers.front() == nullptr)
@@ -33,7 +33,7 @@ std::chrono::steady_clock::duration runForDuration(std::vector<Peer*>& localPeer
     /* Keep receiving after local delivery so neighbours can still relay to this peer; otherwise
      * its data queue fills and their sends time out. Run until the leader's STOP or the deadline.
      */
-    while (std::chrono::steady_clock::now() < deadline && !controlPlane.pollForStop()) {
+    while (std::chrono::steady_clock::now() < deadline && !coordinator.pollForStop()) {
         const auto nextCheck = std::chrono::steady_clock::now() + pollInterval;
         RoundManager::incrementRound();
         peer.receive();
@@ -42,7 +42,7 @@ std::chrono::steady_clock::duration runForDuration(std::vector<Peer*>& localPeer
 
         if (!deliveryReported && peer.localProtocolCompleted()) {
             deliveryTime = std::chrono::steady_clock::now() - startTime;
-            controlPlane.notifyBrbDelivered(peer.publicId());
+            coordinator.notifyBrbDelivered(peer.publicId());
             deliveryReported = true;
         }
 

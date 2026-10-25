@@ -5,10 +5,10 @@
 It builds/runs this file:
 
 ```text
-quantas/Tests/boostMqControlPlaneTimeoutTest.cpp
+quantas/Tests/boostMqCoordinatorTimeoutTest.cpp
 ```
 
-The test exercises `BoostMqControlPlane::waitForAllDone(...)`.
+The test exercises `BoostMqCoordinator::waitForAllDone(...)`.
 
 Conceptually, it creates the leader-side control queues, sends a few fake `done` messages, and
 verifies that the leader behaves correctly when not all peers finish before the timeout.
@@ -25,7 +25,7 @@ leader times out waiting for peer 2
 ```
 */
 
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.hpp"
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <cassert>
 #include <chrono>
@@ -56,7 +56,7 @@ int main() {
     using boost::interprocess::message_queue;
     using namespace std::chrono_literals;
 
-    quantas::BoostMqControlPlane coordinator;
+    quantas::BoostMqCoordinator coordinator;
     quantas::BoostMqQueueConfig queueConfig;
     queueConfig.controlQueueCapacity = 3;
     coordinator.configureExperiment(0, "test", true, 3, quantas::NO_PEER_ID, "cout",

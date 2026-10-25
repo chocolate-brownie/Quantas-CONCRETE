@@ -1,4 +1,4 @@
-#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqControlPlane.hpp"
+#include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.hpp"
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <cassert>
 #include <chrono>
@@ -14,7 +14,7 @@ constexpr const char* kPeerControlQueue = "peer_0_control";
 
 void removeControlQueue() { message_queue::remove(kPeerControlQueue); }
 
-void createLeader(quantas::BoostMqControlPlane& coordinator, std::size_t timeoutMs) {
+void createLeader(quantas::BoostMqCoordinator& coordinator, std::size_t timeoutMs) {
     quantas::BoostMqQueueConfig queueConfig;
     queueConfig.controlQueueCapacity = 1;
     queueConfig.controlSendTimeoutMs = timeoutMs;
@@ -40,7 +40,7 @@ quantas::PeerAssignment assignmentForPeerZero() {
 
 void testMissingQueueErrorsNameOperationPeerAndTimeout() {
     removeControlQueue();
-    quantas::BoostMqControlPlane coordinator;
+    quantas::BoostMqCoordinator coordinator;
     createLeader(coordinator, 50);
     const std::vector<quantas::PeerAssignment> assignments{assignmentForPeerZero()};
 
@@ -61,7 +61,7 @@ void testFullQueueReturnsAtDeadline() {
     const unsigned int existingMessage = 1;
     queue.send(&existingMessage, sizeof(existingMessage), 0);
 
-    quantas::BoostMqControlPlane coordinator;
+    quantas::BoostMqCoordinator coordinator;
     createLeader(coordinator, 50);
     const auto startTime = std::chrono::steady_clock::now();
     const std::string error = thrownMessage([&] { coordinator.broadcastStart(); });

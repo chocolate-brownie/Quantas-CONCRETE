@@ -29,9 +29,6 @@ class NetworkInterfaceZMq : public NetworkInterface, public MeasuredTransport {
 
     TransportMetrics _transportMetrics;
 
-    /* Address of a peer's inbox, e.g. "ipc:///tmp/quantas_zmq_peer_<id>". */
-    static std::string endpointFor(interfaceId id);
-
   public:
     NetworkInterfaceZMq();
     explicit NetworkInterfaceZMq(interfaceId pubId);
@@ -39,7 +36,8 @@ class NetworkInterfaceZMq : public NetworkInterface, public MeasuredTransport {
     ~NetworkInterfaceZMq() override;
 
     // Bind the inbox, connect one PUSH socket per neighbour. Called by ZMqBackend::makeTransport
-    void configure(interfaceId id, std::set<interfaceId> neighbors, std::size_t dataSendTimeoutMs);
+    void configure(interfaceId id, std::set<interfaceId> neighbors, std::size_t dataSendTimeoutMs,
+                   std::size_t dataQueueCapacity);
 
     // NetworkInterface
     void unicastTo(nlohmann::json msg, const interfaceId& dest) override; // PUSH send
@@ -49,6 +47,9 @@ class NetworkInterfaceZMq : public NetworkInterface, public MeasuredTransport {
     // MeasuredTransport
     TransportMetrics transportMetrics() const override;
     void resetTransportMetrics() override;
+
+    /* Address of a peer's inbox, e.g. "ipc:///tmp/quantas_zmq_peer_<id>". */
+    static std::string endpointFor(interfaceId id);
 };
 
 } // namespace quantas

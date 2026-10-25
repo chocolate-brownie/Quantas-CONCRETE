@@ -1,9 +1,20 @@
-// ZMq backend implementation.
-// Placeholder bodies: every function throws until ZMqControlPlane and NetworkInterfaceZMq exist.
-// See BoostMqBackend.cpp for what each function has to do.
+/* +--------------------------------------------------------------------------------------------+ */
+/* | /░░░░    /░/░    /█▀▀█    /░ /░    /░░░    /█▀▀█     /░░░                                  | */
+/* | │_▒ /▒   │ ▒ ▒   │ ▓▓▓▓   │ ▒▒ ▒   │//▒/   │ ▓▓▓▓    │ ▒_/                                 | */
+/* | │ ▓│ ▓   │ ▓ ▓   │_▒_/▒   │ ▓│▓▓    │ ▓    │_▒_/▒    │/_▓                                  | */
+/* | │ ████   │ ███   │ ░│ ░   │ █│ █    │ █    │ ░│ ░    /███                                  | */
+/* | │/_/▀/   │/__/   │//│//   │//│//    │//    │//│//   │/__/                                  | */
+/* |                                                                                            | */
+/* | File: ZMqBackend.cpp                                                                       | */
+/* | Organization: LIP6 Paris                                                                   | */
+/* | Author: Milan Godawatta                                                                    | */
+/* | Created: 2026-10-23 23:14                                                                  | */
+/* | Updated: 2026-10-23 23:14                                                                  | */
+/* | Description:                                                                               | */
+/* +--------------------------------------------------------------------------------------------+ */
 
 #include "quantas/Common/Concrete/Backends/ZMq/ZMqBackend.hpp"
-#include "quantas/Common/Concrete/Backends/ZMq/Control/ZMqControlPlane.hpp"
+#include "quantas/Common/Concrete/Backends/ZMq/Control/ZMqCoordinator.hpp"
 #include "quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.hpp"
 #include "quantas/Common/Concrete/Backends/ZMq/Transport/NetworkInterfaceZMq.hpp"
 #include <memory>
@@ -27,24 +38,22 @@ void ZMqBackend::preflight(const std::vector<PeerAssignment>& assignments,
     preflightZMqQueues(_queueConfig, experimentIndex);
 }
 
-std::unique_ptr<ControlPlane> ZMqBackend::makeControlPlane() {
-    return std::make_unique<ZMqControlPlane>(_queueConfig);
+std::unique_ptr<Coordinator> ZMqBackend::makeCoordinator() {
+    return std::make_unique<ZMqCoordinator>(_queueConfig);
 }
 
 std::unique_ptr<NetworkInterface> ZMqBackend::makeTransport(const PeerAssignment& assignment) {
     auto transport = std::make_unique<NetworkInterfaceZMq>();
-    transport->configure(assignment.id, assignment.neighbors, 0);
+    transport->configure(assignment.id, assignment.neighbors, _queueConfig.dataSendTimeoutMs,
+                         _queueConfig.dataQueueCapacity);
     return transport;
 }
 
 void ZMqBackend::addReportSettings(nlohmann::json& report) const {
-    report["boostMq"] = {{"controlQueueCapacity", 0},
-                         {"dataQueueCapacity", 0},
-                         {"maxMessageSizeBytes", 0},
-                         {"readyTimeoutMs", 0},
-                         {"dataSendTimeoutMs", 0}};
+    report["zeroMq"] = {{"dataSendTimeoutMs", _queueConfig.dataSendTimeoutMs},
+                        {"dataQueueCapacity", _queueConfig.dataQueueCapacity}};
 }
 
-std::size_t ZMqBackend::dataQueueCapacity() const { return 0; }
+std::size_t ZMqBackend::dataQueueCapacity() const { return _queueConfig.dataQueueCapacity; }
 
 } // namespace quantas

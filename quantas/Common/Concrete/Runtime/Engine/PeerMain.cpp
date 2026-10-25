@@ -1,7 +1,7 @@
 #include "quantas/Common/Concrete/Runtime/Config/RuntimeConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Engine/RunLoop.hpp"
 #include "quantas/Common/Concrete/Runtime/Interfaces/Backend.hpp"
-#include "quantas/Common/Concrete/Runtime/Interfaces/ControlPlane.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/Coordinator.hpp"
 #include "quantas/Common/Concrete/Runtime/Interfaces/MeasuredTransport.hpp"
 #include "quantas/Common/Concrete/Runtime/Logging/OutputPaths.hpp"
 #include "quantas/Common/Concrete/Runtime/Metrics/TransportMetrics.hpp"
@@ -100,7 +100,7 @@ std::string configureExperimentOutput(const std::string& logFileBase, size_t exp
 /* ========================= Worker-only utilities ========================= */
 
 // Perform follower-side start barrier rendezvous.
-void initRendezvous(quantas::ControlPlane& coord, int myId) {
+void initRendezvous(quantas::Coordinator& coord, int myId) {
     QUANTAS_LOG_INFO("runner") << "peer " << myId << " configuring process";
 
     QUANTAS_LOG_INFO("runner") << "peer " << myId << " creating inbox";
@@ -237,7 +237,7 @@ int main(int argc, char** argv) {
     }
 
     /* The control plane talks to the leader; it is created by the experiment's backend below. */
-    std::unique_ptr<quantas::ControlPlane> controlPlane;
+    std::unique_ptr<quantas::Coordinator> coordinator;
     const size_t expIndex = cli->experimentIndex;
 
     /* Keep this process's algorithm peer objects and remember which test is active in case
@@ -255,7 +255,7 @@ int main(int argc, char** argv) {
         const auto backend =
             quantas::BackendFactory::makeBackend(experiment.value("backend", "boostMq"));
         backend->loadSettings(experiment, exp.initialPeers);
-        controlPlane = backend->makeControlPlane();
+        coordinator = backend->makeCoordinator();
 
         /* Choose the results location and use the peer ID to keep different peer processes from
          * writing to the same file. */
@@ -272,7 +272,7 @@ int main(int argc, char** argv) {
                 configureExperimentOutput(logFileBase, expIndex, testNumber, processDisambiguator);
 
             /* Tell the control plane which test is running and who this peer is. */
-            controlPlane->configureExperiment(expIndex, exp.initialPeerType, false,
+            coordinator->configureExperiment(expIndex, exp.initialPeerType, false,
                                               exp.initialPeers, cli->peerId, logFileBase,
                                               quantas::StopMode::FixedRounds);
             QUANTAS_LOG_INFO("runner") << "peer " << cli->peerId << " output file: " << metricsFile;
@@ -281,16 +281,16 @@ int main(int argc, char** argv) {
 
             /* Create this peer's inbox and send READY to tell the leader that this process is
              * prepared. */
-            initRendezvous(*controlPlane, cli->peerId);
+            initRendezvous(*coordinator, cli->peerId);
 
             /* Wait for the leader to send this peer's ID, topology type, and neighbour IDs. */
-            std::vector<PeerAssignment> assignments = controlPlane->waitForAssignments();
+            std::vector<PeerAssignment> assignments = coordinator->waitForAssignments();
 
             /* Create the algorithm peer and attach the backend's transport configured with its
              * assignment. */
             if (!prepareLocalPeers(exp, assignments, localPeers, *backend)) {
                 cleanUp(localPeers);
-                controlPlane->cleanUp();
+                coordinator->cleanUp();
                 QUANTAS_LOG_WARN("runner")
                     << "experiment " << expIndex << ": no runnable local peers, skipping";
                 continue;
@@ -302,7 +302,7 @@ int main(int argc, char** argv) {
 
             /* Wait until the leader confirms that every peer is ready and sends the START signal*/
             QUANTAS_LOG_INFO("runner") << "peer " << cli->peerId << " waiting for start";
-            controlPlane->waitForStart();
+            coordinator->waitForStart();
             QUANTAS_LOG_INFO("runner") << "peer " << cli->peerId << " start signal acknowledged";
 
             /* Give the JSON algorithm parameters to the local peer so it can prepare its own
@@ -317,7 +317,7 @@ int main(int argc, char** argv) {
                 /* Let this peer receive messages and perform its algorithm work for the configured
                  * number of local rounds. */
                 deliveryMs = quantas::runForDuration(
-                    localPeers, std::chrono::milliseconds(exp.windowMs), *controlPlane);
+                    localPeers, std::chrono::milliseconds(exp.windowMs), *coordinator);
             } catch (...) {
                 /* If execution fails, save the metrics collected so far and pass the error to the
                  * main failure handler below. */
@@ -333,11 +333,11 @@ int main(int argc, char** argv) {
 
             /* Send DONE to tell the leader that this peer completed its configured local rounds and
              * wrote its metrics. */
-            controlPlane->notifyPeerStopped(localPeers.front()->publicId());
+            coordinator->notifyPeerStopped(localPeers.front()->publicId());
 
             /* Keep this process alive until the leader receives DONE from every peer and sends the
              * final STOP signal. */
-            controlPlane->waitForStop();
+            coordinator->waitForStop();
 
             /* Delete this test's algorithm peer and network interface before starting the next
              * test. */
@@ -345,15 +345,15 @@ int main(int argc, char** argv) {
         }
 
         /* After all tests finish, release the control plane's remaining backend resources. */
-        controlPlane->cleanUp();
+        coordinator->cleanUp();
 
     } catch (const std::exception& ex) {
         /* If any step fails, report the failure when possible, release all local resources, print
          * the reason, and exit with an error code. */
         if (activeTestNumber > 0) {
             try {
-                if (controlPlane)
-                    controlPlane->notifyPeerFailed(cli->peerId);
+                if (coordinator)
+                    coordinator->notifyPeerFailed(cli->peerId);
             } catch (const std::exception& notifyError) {
                 QUANTAS_LOG_ERROR("runner")
                     << "peer " << cli->peerId
@@ -361,8 +361,8 @@ int main(int argc, char** argv) {
             }
         }
         cleanUp(localPeers);
-        if (controlPlane)
-            controlPlane->cleanUp();
+        if (coordinator)
+            coordinator->cleanUp();
         QUANTAS_LOG_ERROR("runner")
             << "experiment " << expIndex
             << (activeTestNumber > 0 ? " test " + std::to_string(activeTestNumber) : "")
