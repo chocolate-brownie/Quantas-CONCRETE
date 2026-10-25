@@ -15,7 +15,8 @@ struct ZMqQueueConfig {
     // How long a PUSH send may wait on a full neighbour queue (ZMQ_SNDTIMEO); same default as BoostMq.
     std::size_t dataSendTimeoutMs{10};
     // High-water mark (ZMQ_SNDHWM / ZMQ_RCVHWM) of every data socket; same default as BoostMq.
-    // Unlike BoostMq's one shared queue, ZeroMQ applies it per connection.
+    // Unlike BoostMq's one shared queue, ZeroMQ applies it per connection on both ends
+    // (measured: a send times out after about 2 × capacity messages).
     std::size_t dataQueueCapacity{1000};
 };
 
