@@ -32,15 +32,7 @@ class BoostMqCoordinator : public Coordinator {
     bool _isLeader{false};
     size_t _totalPeers{0};
     interfaceId _myId{NO_PEER_ID};
-    size_t _experimentIndex{0};
-    std::string _peerType;
-    bool _configured{false};
     std::atomic<bool> _stopSignal{false};
-
-    /* -------------------- Experiment policy/config metadata --------------------
-    Used to keep runtime behavior tied to experiment-level configuration */
-    std::string _logFileBase;
-    StopMode _stopMode;
 
     /* -------------------- Experiment boostmq queue/config metadata --------------------*/
     BoostMqQueueConfig _queueConfig;
@@ -97,7 +89,6 @@ class BoostMqCoordinator : public Coordinator {
     /* -------------------- Stop policy query --------------------
     Placeholder for J9/J12 termination semantics (currently minimal behavior) */
     bool shouldStop() const;
-    StopMode stopMode() const;
     bool pollForStop() override;
     void requestStop(const std::string& reason = "");
     void broadcastStop();

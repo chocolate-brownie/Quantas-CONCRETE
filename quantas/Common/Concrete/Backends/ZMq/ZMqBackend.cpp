@@ -1,18 +1,3 @@
-/* +--------------------------------------------------------------------------------------------+ */
-/* | /░░░░    /░/░    /█▀▀█    /░ /░    /░░░    /█▀▀█     /░░░                                  | */
-/* | │_▒ /▒   │ ▒ ▒   │ ▓▓▓▓   │ ▒▒ ▒   │//▒/   │ ▓▓▓▓    │ ▒_/                                 | */
-/* | │ ▓│ ▓   │ ▓ ▓   │_▒_/▒   │ ▓│▓▓    │ ▓    │_▒_/▒    │/_▓                                  | */
-/* | │ ████   │ ███   │ ░│ ░   │ █│ █    │ █    │ ░│ ░    /███                                  | */
-/* | │/_/▀/   │/__/   │//│//   │//│//    │//    │//│//   │/__/                                  | */
-/* |                                                                                            | */
-/* | File: ZMqBackend.cpp                                                                       | */
-/* | Organization: LIP6 Paris                                                                   | */
-/* | Author: Milan Godawatta                                                                    | */
-/* | Created: 2026-10-23 23:14                                                                  | */
-/* | Updated: 2026-10-23 23:14                                                                  | */
-/* | Description:                                                                               | */
-/* +--------------------------------------------------------------------------------------------+ */
-
 #include "quantas/Common/Concrete/Backends/ZMq/ZMqBackend.hpp"
 #include "quantas/Common/Concrete/Backends/ZMq/Control/ZMqCoordinator.hpp"
 #include "quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.hpp"
@@ -23,7 +8,7 @@ namespace quantas {
 
 /* @brief Load settings from the algo.json config file, Check whether which backend has been chosen
  * and whether there are backend related settings that needs to be configured */
-void ZMqBackend::loadSettings(const nlohmann::json& experiment, int peerCount) {
+void ZMqBackend::loadSettings(const nlohmann::json& experiment, const int peerCount) {
     _queueConfig = parseZMqConfig(experiment, peerCount);
 }
 
@@ -33,7 +18,7 @@ void ZMqBackend::loadSettings(const nlohmann::json& experiment, int peerCount) {
  * (1023 by default) Preflight check: context.get(zmq::ctxopt::max_sockets) must exceed 1 + the
  * largest number of neighbours */
 void ZMqBackend::preflight(const std::vector<PeerAssignment>& assignments,
-                           std::size_t experimentIndex) {
+                           const std::size_t experimentIndex) {
     validateZMqAssignmentPayloads(assignments, _queueConfig, experimentIndex);
     preflightZMqQueues(_queueConfig, experimentIndex);
 }
@@ -51,7 +36,8 @@ std::unique_ptr<NetworkInterface> ZMqBackend::makeTransport(const PeerAssignment
 
 void ZMqBackend::addReportSettings(nlohmann::json& report) const {
     report["zeroMq"] = {{"dataSendTimeoutMs", _queueConfig.dataSendTimeoutMs},
-                        {"dataQueueCapacity", _queueConfig.dataQueueCapacity}};
+                        {"dataQueueCapacity", _queueConfig.dataQueueCapacity},
+                        {"readyTimeoutMs", _queueConfig.readyTimeoutMs}};
 }
 
 std::size_t ZMqBackend::dataQueueCapacity() const { return _queueConfig.dataQueueCapacity; }

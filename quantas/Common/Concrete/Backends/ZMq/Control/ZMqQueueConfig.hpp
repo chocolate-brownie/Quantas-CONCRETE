@@ -18,6 +18,8 @@ struct ZMqQueueConfig {
     // Unlike BoostMq's one shared queue, ZeroMQ applies it per connection on both ends
     // (measured: a send times out after about 2 × capacity messages).
     std::size_t dataQueueCapacity{1000};
+    // How long the leader waits for every peer's READY in total; same default as BoostMq.
+    std::size_t readyTimeoutMs{30000};
 };
 
 ZMqQueueConfig parseZMqConfig(const nlohmann::json& experiment, int initialPeers);

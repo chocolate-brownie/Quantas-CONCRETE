@@ -1,3 +1,18 @@
+/* +--------------------------------------------------------------------------------------------+ */
+/* | /░░░░    /░/░    /█▀▀█    /░ /░    /░░░    /█▀▀█     /░░░                                  | */
+/* | │_▒ /▒   │ ▒ ▒   │ ▓▓▓▓   │ ▒▒ ▒   │//▒/   │ ▓▓▓▓    │ ▒_/                                 | */
+/* | │ ▓│ ▓   │ ▓ ▓   │_▒_/▒   │ ▓│▓▓    │ ▓    │_▒_/▒    │/_▓                                  | */
+/* | │ ████   │ ███   │ ░│ ░   │ █│ █    │ █    │ ░│ ░    /███                                  | */
+/* | │/_/▀/   │/__/   │//│//   │//│//    │//    │//│//   │/__/                                  | */
+/* |                                                                                            | */
+/* | File: BoostMqCoordinator.cpp                                                               | */
+/* | Organization: LIP6 Paris                                                                   | */
+/* | Author: Milan Godawatta                                                                    | */
+/* | Created: 2026-10-26 21:19                                                                  | */
+/* | Updated: 2026-10-26 21:19                                                                  | */
+/* | Description:                                                                               | */
+/* +--------------------------------------------------------------------------------------------+ */
+
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.hpp"
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqQueueConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
@@ -83,21 +98,18 @@ void waitForQueueRemoval(const std::string& queueName) {
 } // namespace
 
 /* Major operation: Load all coordinator state for one experiment. This sets the process role, peer
- * identity, peer count, queue settings, and stop mode, then clears state left by the previous test
+ * identity, peer count and queue settings, then clears state left by the previous test
  * or experiment. It does not create any operating-system queues. */
-void BoostMqCoordinator::configureExperiment(size_t experimentIndex, const std::string& peerType,
-                                              bool isLeader, size_t totalPeers, interfaceId myId,
-                                              const std::string& logFileBase, StopMode stopMode,
-                                              const BoostMqQueueConfig& queueConfig) {
+void BoostMqCoordinator::configureExperiment(size_t /*experimentIndex*/,
+                                             const std::string& /*peerType*/, bool isLeader,
+                                             size_t totalPeers, interfaceId myId,
+                                             const std::string& /*logFileBase*/,
+                                             StopMode /*stopMode*/,
+                                             const BoostMqQueueConfig& queueConfig) {
     _queueConfig = queueConfig;
-    _experimentIndex = experimentIndex;
-    _peerType = peerType;
     _isLeader = isLeader;
     _totalPeers = totalPeers;
     _myId = myId;
-    _configured = true;
-    _logFileBase = logFileBase;
-    _stopMode = stopMode;
     _stopSignal = false;
     _myBarrier.reset();
     _myControlInbox.reset();
@@ -110,8 +122,8 @@ BoostMqCoordinator::BoostMqCoordinator(const BoostMqQueueConfig& queueConfig)
 /* Utility: Coordinator version of configureExperiment, with the queue settings given to the
  * constructor. */
 void BoostMqCoordinator::configureExperiment(size_t experimentIndex, const std::string& peerType,
-                                              bool isLeader, size_t totalPeers, interfaceId myId,
-                                              const std::string& logFileBase, StopMode stopMode) {
+                                             bool isLeader, size_t totalPeers, interfaceId myId,
+                                             const std::string& logFileBase, StopMode stopMode) {
     configureExperiment(experimentIndex, peerType, isLeader, totalPeers, myId, logFileBase,
                         stopMode, _queueConfig);
 }
@@ -218,7 +230,7 @@ void BoostMqCoordinator::sendReady() {
  * ready exactly once. Invalid IDs or message sizes fail startup, while duplicate IDs are logged and
  * ignored. */
 void BoostMqCoordinator::waitForAllReady(std::vector<interfaceId>& readyPeerIds,
-                                          bool& readyTimedOut) {
+                                         bool& readyTimedOut) {
     if (!_isLeader)
         return;
 
@@ -274,6 +286,53 @@ void BoostMqCoordinator::waitForAllReady(std::vector<interfaceId>& readyPeerIds,
         throw std::runtime_error("Failed to ::waitForAllReady for peer " + std::to_string(_myId) +
                                  ": " + ex.what());
     }
+}
+
+/* Major operation: Serialize and send one topology assignment to each peer's control inbox. Fail
+ * before sending an assignment that is larger than the queue's configured message size. */
+void BoostMqCoordinator::sendAssignments(const std::vector<PeerAssignment>& assignments) {
+    if (!_isLeader)
+        return;
+
+    for (const PeerAssignment& assignment : assignments) {
+        /* Set an absolute deadline by adding the configured control-send timeout to the current
+         * time. The later send must finish before this deadline. */
+        const auto deadline = boost::posix_time::microsec_clock::universal_time() +
+                              boost::posix_time::milliseconds(_queueConfig.controlSendTimeoutMs);
+
+        /* Serialize the peer's ID, topology type, and neighbour IDs into bytes before sending the
+         * assignment through that peer's control queue. */
+        std::stringstream ss;
+        boost::archive::binary_oarchive oa(ss);
+        oa << assignment;
+        const std::string bytes = ss.str();
+
+        const std::string queueName = peerControlQueueName(assignment.id);
+
+        try {
+            message_queue peerInbox(open_only, queueName.c_str());
+            if (bytes.size() > peerInbox.get_max_msg_size()) {
+                throw std::runtime_error("Assignment for peer " + std::to_string(assignment.id) +
+                                         " exceeds queue max message size");
+            }
+
+            if (!peerInbox.timed_send(bytes.data(), bytes.size(), 0, deadline)) {
+                throw std::runtime_error("Timed out sending assignment to peer " +
+                                         std::to_string(assignment.id) + " after " +
+                                         std::to_string(_queueConfig.controlSendTimeoutMs) + " ms");
+            }
+        } catch (const interprocess_exception& ex) {
+            throw std::runtime_error(
+                "Failed sending assignment to peer " + std::to_string(assignment.id) + " within " +
+                std::to_string(_queueConfig.controlSendTimeoutMs) + " ms: " + ex.what());
+        }
+    }
+
+    const std::string topologyType =
+        assignments.empty() ? "unknown" : assignments.front().topologyType;
+
+    QUANTAS_LOG_INFO("coord") << "leader sent assignments topology=" << topologyType
+                              << " peers=" << assignments.size();
 }
 
 /* Major operation: Send the normal start signal to every peer control inbox. Peers begin their
@@ -390,53 +449,6 @@ void BoostMqCoordinator::waitForStart() {
     }
 }
 
-/* Major operation: Serialize and send one topology assignment to each peer's control inbox. Fail
- * before sending an assignment that is larger than the queue's configured message size. */
-void BoostMqCoordinator::sendAssignments(const std::vector<PeerAssignment>& assignments) {
-    if (!_isLeader)
-        return;
-
-    for (const PeerAssignment& assignment : assignments) {
-        /* Set an absolute deadline by adding the configured control-send timeout to the current
-         * time. The later send must finish before this deadline. */
-        const auto deadline = boost::posix_time::microsec_clock::universal_time() +
-                              boost::posix_time::milliseconds(_queueConfig.controlSendTimeoutMs);
-
-        /* Serialize the peer's ID, topology type, and neighbour IDs into bytes before sending the
-         * assignment through that peer's control queue. */
-        std::stringstream ss;
-        boost::archive::binary_oarchive oa(ss);
-        oa << assignment;
-        const std::string bytes = ss.str();
-
-        const std::string queueName = peerControlQueueName(assignment.id);
-
-        try {
-            message_queue peerInbox(open_only, queueName.c_str());
-            if (bytes.size() > peerInbox.get_max_msg_size()) {
-                throw std::runtime_error("Assignment for peer " + std::to_string(assignment.id) +
-                                         " exceeds queue max message size");
-            }
-
-            if (!peerInbox.timed_send(bytes.data(), bytes.size(), 0, deadline)) {
-                throw std::runtime_error("Timed out sending assignment to peer " +
-                                         std::to_string(assignment.id) + " after " +
-                                         std::to_string(_queueConfig.controlSendTimeoutMs) + " ms");
-            }
-        } catch (const interprocess_exception& ex) {
-            throw std::runtime_error(
-                "Failed sending assignment to peer " + std::to_string(assignment.id) + " within " +
-                std::to_string(_queueConfig.controlSendTimeoutMs) + " ms: " + ex.what());
-        }
-    }
-
-    const std::string topologyType =
-        assignments.empty() ? "unknown" : assignments.front().topologyType;
-
-    QUANTAS_LOG_INFO("coord") << "leader sent assignments topology=" << topologyType
-                              << " peers=" << assignments.size();
-}
-
 /* Major operation: Wait for this peer's serialized topology assignment, decode it, and return it as
  * a one-item list for the peer startup code. */
 std::vector<PeerAssignment> BoostMqCoordinator::waitForAssignments() {
@@ -551,9 +563,6 @@ bool BoostMqCoordinator::pollForStop() {
     requestStop("leader established all-correct BRB delivery");
     return true;
 }
-
-/* Utility: Return the stop policy selected for the current experiment. */
-StopMode BoostMqCoordinator::stopMode() const { return _stopMode; }
 
 /* Major operation: Mark this process as stopping. The atomic exchange makes repeated requests
  * harmless, and the optional reason is written to the log. */

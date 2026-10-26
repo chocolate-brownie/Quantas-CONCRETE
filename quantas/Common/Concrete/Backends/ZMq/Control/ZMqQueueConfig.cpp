@@ -1,19 +1,3 @@
-/* +--------------------------------------------------------------------------------------------+ */
-/* | /░░░░    /░/░    /█▀▀█    /░ /░    /░░░    /█▀▀█     /░░░                                  | */
-/* | │_▒ /▒   │ ▒ ▒   │ ▓▓▓▓   │ ▒▒ ▒   │//▒/   │ ▓▓▓▓    │ ▒_/                                 | */
-/* | │ ▓│ ▓   │ ▓ ▓   │_▒_/▒   │ ▓│▓▓    │ ▓    │_▒_/▒    │/_▓                                  | */
-/* | │ ████   │ ███   │ ░│ ░   │ █│ █    │ █    │ ░│ ░    /███                                  | */
-/* | │/_/▀/   │/__/   │//│//   │//│//    │//    │//│//   │/__/                                  | */
-/* |                                                                                            | */
-/* | File: ZMqQueueConfig.cpp                                                                   | */
-/* | Organization: LIP6 Paris                                                                   | */
-/* | Author: Milan Godawatta                                                                    | */
-/* | Created: 2026-10-23 23:07                                                                  | */
-/* | Updated: 2026-10-23 23:27                                                                  | */
-/* | Description: Reads the ZeroMQ backend settings and checks, before a run, that the          | */
-/* | topology and the system can support ZeroMQ.                                                | */
-/* +--------------------------------------------------------------------------------------------+ */
-
 #include "quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.hpp"
 #include "quantas/Common/Concrete/Backends/ZMq/Transport/NetworkInterfaceZMq.hpp"
 #include <algorithm>
@@ -57,6 +41,15 @@ ZMqQueueConfig parseZMqConfig(const nlohmann::json& experiment, int initialPeers
             throw std::runtime_error("zeroMq.dataQueueCapacity must be a positive whole number");
 
         config.dataQueueCapacity = value.get<std::size_t>();
+    }
+
+    if (zeroMq.contains("readyTimeoutMs")) {
+        const auto& value = zeroMq["readyTimeoutMs"];
+
+        if (!value.is_number_unsigned() || value.get<std::size_t>() == 0)
+            throw std::runtime_error("zeroMq.readyTimeoutMs must be a positive whole number");
+
+        config.readyTimeoutMs = value.get<std::size_t>();
     }
 
     return config;

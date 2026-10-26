@@ -1,18 +1,3 @@
-/* +--------------------------------------------------------------------------------------------+ */
-/* | /░░░░    /░/░    /█▀▀█    /░ /░    /░░░    /█▀▀█     /░░░                                  | */
-/* | │_▒ /▒   │ ▒ ▒   │ ▓▓▓▓   │ ▒▒ ▒   │//▒/   │ ▓▓▓▓    │ ▒_/                                 | */
-/* | │ ▓│ ▓   │ ▓ ▓   │_▒_/▒   │ ▓│▓▓    │ ▓    │_▒_/▒    │/_▓                                  | */
-/* | │ ████   │ ███   │ ░│ ░   │ █│ █    │ █    │ ░│ ░    /███                                  | */
-/* | │/_/▀/   │/__/   │//│//   │//│//    │//    │//│//   │/__/                                  | */
-/* |                                                                                            | */
-/* | File: LeaderMain.cpp                                                                       | */
-/* | Organization: LIP6 Paris                                                                   | */
-/* | Author: Milan Godawatta                                                                    | */
-/* | Created: 2026-10-24 22:22                                                                  | */
-/* | Updated: 2026-10-25 00:14                                                                  | */
-/* | Description:                                                                               | */
-/* +--------------------------------------------------------------------------------------------+ */
-
 #include "quantas/Common/Concrete/Runtime/Config/RuntimeConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Interfaces/Backend.hpp"
 #include "quantas/Common/Concrete/Runtime/Interfaces/Coordinator.hpp"
