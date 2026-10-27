@@ -204,7 +204,7 @@ leadermain     * an experiment. */
             const auto reportPath = bmqrep::makeLeaderReportPath(logFileBase, expIndex);
 
             // Create the coordinator and give it all the information it needs
-            coordinatorPtr = backend->makeCoordinator(); // TODO:
+            coordinatorPtr = backend->makeCoordinator();
             quantas::Coordinator& coordinator = *coordinatorPtr;
             coordinator.configureExperiment(expIndex, exp.initialPeerType, true, exp.initialPeers,
                                             quantas::NO_PEER_ID, logFileBase,
@@ -240,8 +240,8 @@ leadermain     * an experiment. */
 
                 testStartTime = std::chrono::high_resolution_clock::now();
 
-                /* Create fresh leader-owned queues: `mq_barrier` receives ready signals and
-                 * `mq_done` receives completion reports from peers. */
+                /* Open queues(bmq) or sockets(zmq) for the leader <-> peer communication. Using
+                 * these channles peer can send READY msg to leader and etc... */
                 coordinator.openChannels();
 
                 /* Wait for every expected peer to report that it is ready. If the deadline is

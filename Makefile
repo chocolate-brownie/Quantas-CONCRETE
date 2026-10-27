@@ -270,6 +270,21 @@ mq_queue_config_test: build/tests/mq_queue_config_test.exe
 	@./build/tests/mq_queue_config_test.exe
 	@echo ""
 
+zmq_queue_config_test: build/tests/zmq_queue_config_test.exe
+	@echo "Testing ZeroMQ queue configuration..."
+	@./build/tests/zmq_queue_config_test.exe
+	@echo ""
+
+zmq_transport_test: build/tests/zmq_transport_test.exe
+	@echo "Testing ZeroMQ transport..."
+	@./build/tests/zmq_transport_test.exe
+	@echo ""
+
+zmq_coordinator_test: build/tests/zmq_coordinator_test.exe
+	@echo "Testing ZeroMQ coordinator protocol..."
+	@./build/tests/zmq_coordinator_test.exe
+	@echo ""
+
 mq_transport_metrics_test: build/tests/mq_transport_metrics_test.exe
 	@echo "Testing BoostMQ transport metrics..."
 	@./build/tests/mq_transport_metrics_test.exe
@@ -344,7 +359,7 @@ mq_cleanup_test:
 # folder such that the input files need not be listed here
 TEST_INPUTS := quantas/ExamplePeer/ExampleInput.json quantas/AltBitPeer/AltBitUtility.json quantas/PBFTPeer/PBFTInput.json quantas/BitcoinPeer/BitcoinPeerInput.json quantas/EthereumPeer/EthereumPeerInput.json quantas/LinearChordPeer/LinearChordInput.json quantas/KademliaPeer/KademliaPeerInput.json quantas/RaftPeer/RaftInput.json quantas/StableDataLinkPeer/StableDataLinkInput.json
 
-test: check-version rand_test mq_timeout_test mq_ready_identity_test mq_control_send_test mq_control_send_failure_test mq_queue_config_test mq_transport_metrics_test mq_report_test mq_invalid_output_test mq_data_delivery_failure_test mq_runtime_config_test mq_run_counts_test mq_repeated_tests_test mq_repeated_failure_test mq_topology_parity_test mq_topology_preflight_test mq_researcher_contract_test mq_ready_timeout_test init_parameters_test mq_cleanup_test
+test: check-version rand_test mq_timeout_test mq_ready_identity_test mq_control_send_test mq_control_send_failure_test mq_queue_config_test mq_transport_metrics_test mq_report_test mq_invalid_output_test mq_data_delivery_failure_test mq_runtime_config_test mq_run_counts_test mq_repeated_tests_test mq_repeated_failure_test mq_topology_parity_test mq_topology_preflight_test mq_researcher_contract_test mq_ready_timeout_test init_parameters_test mq_cleanup_test zmq_queue_config_test zmq_transport_test zmq_coordinator_test
 	@echo "Running memory tests on all test inputs..."
 	@echo ""
 	@for file in $(TEST_INPUTS); do \
@@ -465,6 +480,25 @@ build/tests/mq_queue_config_test.exe: quantas/Tests/boostMqQueueConfigTest.cpp \
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
 
+build/tests/zmq_queue_config_test.exe: quantas/Tests/zmqQueueConfigTest.cpp \
+		quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.cpp \
+		quantas/Common/Concrete/Backends/ZMq/Transport/NetworkInterfaceZMq.cpp \
+		quantas/Common/Logger.cpp | check_mq_deps
+	@mkdir -p $(dir $@)
+	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
+
+build/tests/zmq_transport_test.exe: quantas/Tests/zmqTransportTest.cpp \
+		quantas/Common/Concrete/Backends/ZMq/Transport/NetworkInterfaceZMq.cpp \
+		quantas/Common/Logger.cpp | check_mq_deps
+	@mkdir -p $(dir $@)
+	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
+
+build/tests/zmq_coordinator_test.exe: quantas/Tests/zmqCoordinatorTest.cpp \
+		quantas/Common/Concrete/Backends/ZMq/Control/ZMqCoordinator.cpp \
+		quantas/Common/Logger.cpp | check_mq_deps
+	@mkdir -p $(dir $@)
+	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
+
 build/tests/mq_transport_metrics_test.exe: quantas/Tests/boostMqTransportMetricsTest.cpp \
 		quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.cpp \
 		quantas/Common/Logger.cpp | check_mq_deps
@@ -565,4 +599,4 @@ clean_outputs:
 ############################### PHONY ###############################
 
 # All make commands found in this file
-.PHONY: help clean mq_status mq_cleanup run mq mq_debug release debug mq_peer_release mq_peer_debug mq_release mq_debug_build mq_leader_release mq_leader_debug clang run_memory run_simple_memory run_debug check-version check-clang check_mq_deps rand_test mq_timeout_test mq_ready_identity_test mq_control_send_test mq_control_send_failure_test mq_queue_config_test mq_transport_metrics_test mq_report_test mq_invalid_output_test mq_data_delivery_failure_test mq_runtime_config_test mq_run_counts_test mq_repeated_tests_test mq_repeated_failure_test mq_topology_parity_test mq_topology_preflight_test mq_researcher_contract_test mq_ready_timeout_test init_parameters_test mq_cleanup_test test clean_outputs
+.PHONY: help clean mq_status mq_cleanup run mq mq_debug release debug mq_peer_release mq_peer_debug mq_release mq_debug_build mq_leader_release mq_leader_debug clang run_memory run_simple_memory run_debug check-version check-clang check_mq_deps rand_test mq_timeout_test mq_ready_identity_test mq_control_send_test mq_control_send_failure_test mq_queue_config_test mq_transport_metrics_test mq_report_test mq_invalid_output_test mq_data_delivery_failure_test mq_runtime_config_test mq_run_counts_test mq_repeated_tests_test mq_repeated_failure_test mq_topology_parity_test mq_topology_preflight_test mq_researcher_contract_test mq_ready_timeout_test init_parameters_test mq_cleanup_test zmq_queue_config_test zmq_transport_test zmq_coordinator_test test clean_outputs

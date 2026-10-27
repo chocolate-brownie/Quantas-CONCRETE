@@ -35,6 +35,7 @@ std::unique_ptr<NetworkInterface> ZMqBackend::makeTransport(const PeerAssignment
 }
 
 void ZMqBackend::addReportSettings(nlohmann::json& report) const {
+    report["backend"] = "zeroMq"; // replaces ReportWriter's generic "mq"
     report["zeroMq"] = {{"dataSendTimeoutMs", _queueConfig.dataSendTimeoutMs},
                         {"dataQueueCapacity", _queueConfig.dataQueueCapacity},
                         {"readyTimeoutMs", _queueConfig.readyTimeoutMs}};

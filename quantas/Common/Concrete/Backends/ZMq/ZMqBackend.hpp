@@ -1,5 +1,4 @@
 // ZMq child of Backend (uses ZMqCoordinator and NetworkInterfaceZMq).
-// Skeleton only: see quantas/Common/Concrete/architecture.drawio.
 
 #ifndef QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_ZMQBACKEND_HPP
 #define QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_ZMQBACKEND_HPP

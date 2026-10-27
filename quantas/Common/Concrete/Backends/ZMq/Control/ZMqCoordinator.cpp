@@ -9,7 +9,7 @@
 /* | Organization: LIP6 Paris                                                                   | */
 /* | Author: Milan Godawatta                                                                    | */
 /* | Created: 2026-10-26 15:50                                                                  | */
-/* | Updated: 2026-10-26 21:17                                                                  | */
+/* | Updated: 2026-10-27 11:55                                                                  | */
 /* | Description: Runs the leader/peer control protocol over one ZeroMQ ROUTER/DEALER pair      | */
 /* | (READY, assignments, START, DELIVERED, DONE, STOP, RELEASE).                               | */
 /* +--------------------------------------------------------------------------------------------+ */
@@ -207,11 +207,9 @@ void ZMqCoordinator::broadcastStart() {
 
 /* @brief Collect DELIVERED / DONE / FAILED until every peer is done or failed, or the timeout
  * expires. Sends STOP as soon as every correct peer has delivered (BRB algorithms). */
-PeerCompletionResult
-ZMqCoordinator::waitForAllDone(std::chrono::milliseconds timeout,
-                               const std::vector<interfaceId>& correctPeerIds,
-                               std::optional<std::chrono::steady_clock::time_point>
-                                   protocolStartTime) {
+PeerCompletionResult ZMqCoordinator::waitForAllDone(
+    std::chrono::milliseconds timeout, const std::vector<interfaceId>& correctPeerIds,
+    std::optional<std::chrono::steady_clock::time_point> protocolStartTime) {
     PeerCompletionResult result;
 
     if (!_isLeader)
@@ -243,8 +241,8 @@ ZMqCoordinator::waitForAllDone(std::chrono::milliseconds timeout,
             }
 
             if (peerId < 0 || static_cast<std::size_t>(peerId) >= _totalPeers) {
-                QUANTAS_LOG_WARN("ZMqCoord") << "leader ignored invalid completion peer id "
-                                             << peerId;
+                QUANTAS_LOG_WARN("ZMqCoord")
+                    << "leader ignored invalid completion peer id " << peerId;
                 continue;
             }
 
@@ -406,8 +404,7 @@ void ZMqCoordinator::notifyPeerFailed(interfaceId id) { notifyLeader(id, "FAILED
 /* Leader: send one message to one peer. A ROUTER message has two parts: the routing id, which
  * picks the peer and is not delivered, then the body. Returns false when sndtimeo expires;
  * router_mandatory makes an unknown peer throw zmq::error_t (EHOSTUNREACH). */
-bool ZMqCoordinator::sendToPeer(interfaceId id, const std::string& body,
-                                zmq::send_flags flags) {
+bool ZMqCoordinator::sendToPeer(interfaceId id, const std::string& body, zmq::send_flags flags) {
     return _router.send(zmq::buffer(routingIdFor(id)), flags | zmq::send_flags::sndmore) &&
            _router.send(zmq::buffer(body), flags);
 }
@@ -434,8 +431,8 @@ void ZMqCoordinator::broadcastOrThrow(const std::string& body) {
                 throw std::runtime_error("Timed out sending " + body + " to peer " +
                                          std::to_string(id));
         } catch (const zmq::error_t& ex) {
-            throw std::runtime_error("Failed sending " + body + " to peer " +
-                                     std::to_string(id) + ": " + ex.what());
+            throw std::runtime_error("Failed sending " + body + " to peer " + std::to_string(id) +
+                                     ": " + ex.what());
         }
     }
 }

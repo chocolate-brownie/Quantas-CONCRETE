@@ -1,5 +1,4 @@
 // ZMq child of NetworkInterface (PUSH to neighbours, PULL inbox).
-// Skeleton only: see quantas/Common/Concrete/architecture.drawio.
 
 #ifndef QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_TRANSPORT_NETWORKINTERFACEZMQ_HPP
 #define QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_TRANSPORT_NETWORKINTERFACEZMQ_HPP

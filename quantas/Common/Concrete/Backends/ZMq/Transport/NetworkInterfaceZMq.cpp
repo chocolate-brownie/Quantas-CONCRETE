@@ -1,5 +1,4 @@
 // ZMq transport implementation: PULL inbox, one PUSH socket per neighbour.
-// See quantas/Common/Concrete/architecture.drawio.
 
 #include "quantas/Common/Concrete/Backends/ZMq/Transport/NetworkInterfaceZMq.hpp"
 #include "quantas/Common/Logger.hpp"

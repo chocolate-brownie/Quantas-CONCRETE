@@ -31,6 +31,7 @@ std::unique_ptr<NetworkInterface> BoostMqBackend::makeTransport(const PeerAssign
 }
 
 void BoostMqBackend::addReportSettings(nlohmann::json& report) const {
+    report["backend"] = "boostMq"; // replaces ReportWriter's generic "mq"
     report["boostMq"] = {{"controlQueueCapacity", _queueConfig.controlQueueCapacity},
                          {"dataQueueCapacity", _queueConfig.dataQueueCapacity},
                          {"maxMessageSizeBytes", _queueConfig.maxMessageSizeBytes},

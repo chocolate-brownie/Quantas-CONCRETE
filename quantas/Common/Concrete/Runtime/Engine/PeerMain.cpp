@@ -253,7 +253,7 @@ int main(int argc, char** argv) {
         /* Create the experiment's backend ("backend" in the JSON, default "boostMq"), let it read
          * its own settings, and create the control plane that talks to the leader. */
         const auto backend =
-            quantas::BackendFactory::makeBackend(experiment.value("backend", "boostMq"));
+            quantas::BackendFactory::makeBackend(experiment.value("backend", "zeroMq"));
         backend->loadSettings(experiment, exp.initialPeers);
         coordinator = backend->makeCoordinator();
 
@@ -272,9 +272,9 @@ int main(int argc, char** argv) {
                 configureExperimentOutput(logFileBase, expIndex, testNumber, processDisambiguator);
 
             /* Tell the control plane which test is running and who this peer is. */
-            coordinator->configureExperiment(expIndex, exp.initialPeerType, false,
-                                              exp.initialPeers, cli->peerId, logFileBase,
-                                              quantas::StopMode::FixedRounds);
+            coordinator->configureExperiment(expIndex, exp.initialPeerType, false, exp.initialPeers,
+                                             cli->peerId, logFileBase,
+                                             quantas::StopMode::FixedRounds);
             QUANTAS_LOG_INFO("runner") << "peer " << cli->peerId << " output file: " << metricsFile;
             QUANTAS_LOG_INFO("runner") << "peer " << cli->peerId << " starting experiment "
                                        << expIndex << " test " << testNumber;

@@ -1,5 +1,4 @@
 // ZMq child of Coordinator (ROUTER/DEALER control channel; data uses PUSH/PULL in the transport).
-// Skeleton only: see quantas/Common/Concrete/architecture.drawio.
 
 #ifndef QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_CONTROL_ZMQCOORDINATOR_HPP
 #define QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_CONTROL_ZMQCOORDINATOR_HPP

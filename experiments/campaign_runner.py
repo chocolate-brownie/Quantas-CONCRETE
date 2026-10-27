@@ -35,11 +35,19 @@ FAMILIES = ("edge_remover", "erdos_renyi", "random_regular")
 ALGORITHMS = {"cpa": "CPAPeer", "dolev": "DolevPeer"}
 ABSTRACT_ROOT = REPO_ROOT / "quantas_mtrc-main/Quantas"
 LAUNCHER = Path("quantas/Common/Concrete/Backends/BoostMq/Entrypoints/runBoostMq.sh")
-# Concrete settings applied to every CPA and Dolev experiment (see experiments/concrete-settings.md).
+# Concrete settings applied to every CPA and Dolev experiment, per backend (see
+# experiments/concrete-settings.md). "concrete" is BoostMq; the name is kept so existing results,
+# CSVs and figures still match. "backend" is set explicitly because the leader and the peers
+# default to different backends.
 CONCRETE_SETTINGS = {
-    "boostMq": {"dataQueueCapacity": 20000},
-    "windowMs": 2000,
-    "doneTimeoutMs": 120000,
+    "concrete": {
+        "backend": "boostMq",
+        "boostMq": {"dataQueueCapacity": 20000},
+        "windowMs": 2000,
+        "doneTimeoutMs": 120000,
+    },
+    # zeroMq defaults: 0 dropped messages in the heaviest Dolev case.
+    "zeroMq": {"backend": "zeroMq", "windowMs": 2000, "doneTimeoutMs": 120000},
 }
 QUEUE_NAME = re.compile(r"(?:mq_barrier|mq_done|peer_[0-9]+_(?:control|data))")
 
@@ -133,8 +141,8 @@ def effective_input(original, index, backend):
         f"{peer}/{peer}.cpp" if backend == "abstract" else f"MTRCPeer/{peer}/{peer}.cpp"
     ]
     config["experiments"] = [experiment]
-    if backend == "concrete":
-        experiment.update(copy.deepcopy(CONCRETE_SETTINGS))
+    if backend != "abstract":
+        experiment.update(copy.deepcopy(CONCRETE_SETTINGS[backend]))
     experiment["logFile"] = (
         "abstract.json" if backend == "abstract" else Path(experiment["logFile"]).name
     )
@@ -196,7 +204,7 @@ def collect_rows(report_path, backend, expected_tests, base, run_error=""):
             if type(index) is not int or not 0 <= index < expected_tests or index in tests:
                 raise ValueError("Invalid or duplicate test index")
             tests[index] = entry
-        if backend == "concrete" and report.get("success") is not True:
+        if backend != "abstract" and report.get("success") is not True:
             run_error = run_error or "Concrete experiment did not succeed"
     except (OSError, ValueError, KeyError, TypeError) as error:
         report_error = f"Cannot read valid report: {error}"
@@ -319,7 +327,7 @@ def build_backend(backend, root, backend_dir, config):
     )
     for name in names:
         shutil.copy2(root / name, directory / name)
-    if backend == "concrete":
+    if backend != "abstract":
         shutil.copy2(root / LAUNCHER, directory / "runBoostMq.sh")
     return directory
 
@@ -452,7 +460,7 @@ def run(backend, algorithm, family, k, max_t, limit_experiments, campaign_dir, c
     if not pending:
         print(f"Saved {csv_path}", flush=True)
         return
-    if backend == "concrete":
+    if backend != "abstract":
         check_concrete_idle()
     first_path, first_index, _, _ = pending[0]
     binaries = build_backend(
