@@ -40,6 +40,7 @@ class DolevPeer : public Peer {
     void endOfRound(std::vector<Peer *> &peers) override;
     bool localProtocolCompleted() const override;
     nlohmann::json collectAlgoMetrics() const override;
+    void setRunDeadline(std::chrono::steady_clock::time_point deadline) override;
 
     NetworkInterface *releaseNetworkInterface();
 
@@ -56,6 +57,9 @@ class DolevPeer : public Peer {
 
     unordered_map<int, vector<unordered_set<interfaceId>>> receivedMessages = {}; // m -> list of path vectors from which this peer has received m
     vector<int> byzantineIds = {}; // byzantine ids from the parameters (Concrete stand-in for allPeers)
+    chrono::steady_clock::time_point runDeadline = chrono::steady_clock::time_point::max(); // Concrete run end
+    int disjointSearchTimeouts = 0; // k_disjoint searches stopped by the slice or runDeadline
+    static constexpr chrono::milliseconds kDisjointSearchSlice{100}; // Concrete: max time per search
 
 
   private:

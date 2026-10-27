@@ -3,6 +3,7 @@
 #include <unordered_set>
 #include <algorithm>
 #include <functional>
+#include <chrono>
 
 using namespace std;
 
@@ -55,14 +56,24 @@ static void print_list_sets(const vector<unordered_set<long>>& sets) {
     cout << "]\n";
 }
 
-bool k_disjoint(const vector<unordered_set<long>> &vs, int k) {
+/* Concrete addition: the search is exponential in the worst case, so it stops once `deadline`
+ * has passed (checked every 4096 steps), returning false and setting *timedOut. Without a
+ * deadline it behaves exactly like Lorenzo's version. */
+bool k_disjoint(const vector<unordered_set<long>> &vs, int k,
+                chrono::steady_clock::time_point deadline = chrono::steady_clock::time_point::max(),
+                bool *timedOut = nullptr) {
     if (k <= 0) return true;
     if (static_cast<int>(vs.size()) < k) return false;
 
     unordered_set<long> used;
     vector<int> selected_indices;
+    long steps = 0;
+    bool stopped = false;
 
     function<bool(int, int)> dfs = [&](int start, int chosen) -> bool {
+        if (++steps % 4096 == 0 && chrono::steady_clock::now() >= deadline) stopped = true;
+        if (stopped) return false;
+
         if (chosen == k) {
             /*cout << "\n\nFound " << k << " disjoint sets:\n";
             for (int idx : selected_indices) {
@@ -88,6 +99,7 @@ bool k_disjoint(const vector<unordered_set<long>> &vs, int k) {
             for (long x : vs[i]) used.insert(x);
 
             if (dfs(i + 1, chosen + 1)) return true;
+            if (stopped) return false;
 
             for (long x : vs[i]) used.erase(x);
             selected_indices.pop_back();
@@ -95,7 +107,9 @@ bool k_disjoint(const vector<unordered_set<long>> &vs, int k) {
         return false;
     };
 
-    return dfs(0, 0);
+    const bool found = dfs(0, 0);
+    if (timedOut) *timedOut = stopped;
+    return found;
 }
 
 
@@ -128,7 +142,10 @@ bool is_subset(const unordered_set<long>& a, const unordered_set<long>& b) {
     return true;
 }
 
-vector<unordered_set<long>> remove_unnecessary_paths(const vector<unordered_set<long>>& sets){
+// Concrete addition: stops pruning once `deadline` has passed (see the loop below).
+vector<unordered_set<long>> remove_unnecessary_paths(
+    const vector<unordered_set<long>>& sets,
+    chrono::steady_clock::time_point deadline = chrono::steady_clock::time_point::max()){
     
     int max_length = 0;
     for (const auto& set : sets){
@@ -151,6 +168,12 @@ vector<unordered_set<long>> remove_unnecessary_paths(const vector<unordered_set<
     vector<unordered_set<long>> result = {};
     int i = 0;
     while (i < static_cast<int>(copy_sets.size())){
+        // Past the deadline: keep the remaining paths unpruned. Still correct, pruning only drops
+        // paths that contain another path.
+        if (chrono::steady_clock::now() >= deadline){
+            result.insert(result.end(), copy_sets.begin() + i, copy_sets.end());
+            break;
+        }
 
         // remove all sets for which copy_sets[i] is a subset
         int j = i+1;

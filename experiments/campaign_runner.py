@@ -46,8 +46,13 @@ CONCRETE_SETTINGS = {
         "windowMs": 2000,
         "doneTimeoutMs": 120000,
     },
-    # zeroMq defaults: 0 dropped messages in the heaviest Dolev case.
-    "zeroMq": {"backend": "zeroMq", "windowMs": 2000, "doneTimeoutMs": 120000},
+    # The default dataQueueCapacity (1000) makes sends time out in the heaviest Dolev case.
+    "zeroMq": {
+        "backend": "zeroMq",
+        "zeroMq": {"dataQueueCapacity": 20000},
+        "windowMs": 2000,
+        "doneTimeoutMs": 120000,
+    },
 }
 QUEUE_NAME = re.compile(r"(?:mq_barrier|mq_done|peer_[0-9]+_(?:control|data))")
 

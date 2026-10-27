@@ -40,7 +40,7 @@ class NetworkInterfaceZMq : public NetworkInterface, public MeasuredTransport {
 
     // NetworkInterface
     void unicastTo(nlohmann::json msg, const interfaceId& dest) override; // PUSH send
-    void receive() override;  // non-blocking PULL recv until empty, into _inStream
+    void receive() override;  // non-blocking PULL recv, at most kMaxReceivePerCall, into _inStream
     void clearAll() override; // close sockets, clear _inStream
 
     // MeasuredTransport

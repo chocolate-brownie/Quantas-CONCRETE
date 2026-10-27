@@ -2,6 +2,7 @@
   "algorithms": ["Tests/boostMqResearcherContractPeer.cpp"],
   "experiments": [
     {
+      "backend": "boostMq",
       "logFile": "build/tests/mqResearcherContract.json",
       "parameters": {
         "marker": "contract-marker"

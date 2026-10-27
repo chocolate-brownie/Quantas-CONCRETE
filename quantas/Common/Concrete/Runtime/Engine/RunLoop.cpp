@@ -26,6 +26,8 @@ std::chrono::steady_clock::duration runForDuration(std::vector<Peer*>& localPeer
     RoundManager::setLastRound(0);
 
     const auto deadline = std::chrono::steady_clock::now() + duration;
+    // The deadline is only checked between iterations; long computations check it themselves.
+    peer.setRunDeadline(deadline);
     const auto startTime = std::chrono::steady_clock::now();
     std::chrono::steady_clock::duration deliveryTime{};
     bool deliveryReported = false;

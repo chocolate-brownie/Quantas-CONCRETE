@@ -25,7 +25,12 @@ nlohmann::json DolevPeer::collectAlgoMetrics() const {
             {"delivered", delivered},
             {"delivered_value", mDelivered},
             {"delivery_round", deliveryRound},
-            {"messages_sent", msgsSent}};
+            {"messages_sent", msgsSent},
+            {"disjoint_search_timeouts", disjointSearchTimeouts}};
+}
+
+void DolevPeer::setRunDeadline(std::chrono::steady_clock::time_point deadline) {
+    runDeadline = deadline;
 }
 
 std::string pathToString(const std::unordered_set<interfaceId>& path) {
@@ -64,6 +69,8 @@ DolevPeer::DolevPeer(const DolevPeer &rhs) : Peer(rhs) {
     deliveryRound = rhs.deliveryRound;
     mDelivered = rhs.mDelivered;
     byzantineIds = rhs.byzantineIds;
+    runDeadline = rhs.runDeadline;
+    disjointSearchTimeouts = rhs.disjointSearchTimeouts;
 }
 
 DolevPeer::~DolevPeer() = default;
@@ -106,6 +113,9 @@ NetworkInterface *DolevPeer::releaseNetworkInterface() {
 void DolevPeer::checkInStrm() {
     vector<int> toCheck = {};
     while (!inStreamEmpty()) {
+        // Concrete: past the run deadline, leave the rest unprocessed, as if it arrived too late.
+        if (chrono::steady_clock::now() >= runDeadline) return;
+
         Packet packet = popInStream();
         interfaceId srcId = packet.sourceId();
         json msg = packet.getMessage();
@@ -159,11 +169,15 @@ void DolevPeer::checkInStrm() {
     if (neighbors().size() - byzantine_neighbors <= ts) return;
 
     for (const auto& m : toCheck) {
-        vector<unordered_set<long>> modified_sets = remove_unnecessary_paths(receivedMessages[m]);
+        vector<unordered_set<long>> modified_sets = remove_unnecessary_paths(receivedMessages[m], runDeadline);
         receivedMessages[m] = modified_sets;
 
         modified_sets = remove_src(receivedMessages[m], 0);
-        if (!delivered && k_disjoint(modified_sets, ts+1)) {
+        // Concrete: one search may use at most kDisjointSearchSlice, so a value that can never be
+        // delivered (e.g. the forged one) cannot use up the run before the other values are checked.
+        const auto searchDeadline = min(runDeadline, chrono::steady_clock::now() + kDisjointSearchSlice);
+        bool timedOut = false;
+        if (!delivered && k_disjoint(modified_sets, ts+1, searchDeadline, &timedOut)) {
             delivered = true;
             deliveryRound = RoundManager::currentRound();
             mDelivered = m;
@@ -173,6 +187,9 @@ void DolevPeer::checkInStrm() {
             propagateMsg(m, {sender});
             return;
         }
+        // Out of time: count it and check the next value; this one is checked again when new
+        // paths for it arrive.
+        if (timedOut) disjointSearchTimeouts++;
     }
 }
 

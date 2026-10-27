@@ -2,6 +2,7 @@
   "algorithms": ["AltBitPeer/AltBitPeer.cpp"],
   "experiments": [
     {
+      "backend": "boostMq",
       "logFile": "build/tests/mqRepeatedTests.txt",
       "threadCount": 1,
       "parameters": {

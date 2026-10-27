@@ -23,8 +23,6 @@
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/interprocess/interprocess_fwd.hpp>
-#include <chrono>
-#include <cstdint>
 #include <mutex>
 #include <sstream>
 #include <vector>
@@ -138,22 +136,16 @@ void NetworkInterfaceBMq::receive() {
         // How many messages are waiting right now
         _transportMetrics.peakQueueUsage = std::max(_transportMetrics.peakQueueUsage, currentUsage);
 
-        while (_myInbox->try_receive(buffer.data(), buffer.size(), recvd_size, priority)) {
+        for (std::size_t n = 0;
+             n < kMaxReceivePerCall &&
+             _myInbox->try_receive(buffer.data(), buffer.size(), recvd_size, priority);
+             ++n) {
             _transportMetrics.receivedRaw++;
 
             std::stringstream ss(std::string(buffer.data(), recvd_size));
             boost::archive::binary_iarchive ia(ss);
             Packet p;
             ia >> p;
-
-            // Compute latency
-            auto nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                             std::chrono::system_clock::now().time_since_epoch())
-                             .count();
-
-            std::int64_t latency = nowNs - p.getSendTime();
-            std::cout << "latency peer_" << p.sourceId() << " -> peer_" << publicId() << ": "
-                      << latency << " ns\n";
 
             std::lock_guard<std::mutex> lock(_inStream_mtx);
             _inStream.push_back(std::move(p));

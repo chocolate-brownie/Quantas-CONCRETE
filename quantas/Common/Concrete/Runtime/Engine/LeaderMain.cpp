@@ -171,7 +171,7 @@ leadermain     * an experiment. */
              * topology messages before creating any queues. */
             const auto exp = quantas::parseRuntimeExperiment(*config, expIndex);
 
-            /* Create the experiment's backend ("backend" in the JSON, default "boostMq") and let
+            /* Create the experiment's backend ("backend" in the JSON, default "zeroMq") and let
              * it read its own settings. */
             const auto backend =
                 quantas::BackendFactory::makeBackend(experiment.value("backend", "zeroMq"));

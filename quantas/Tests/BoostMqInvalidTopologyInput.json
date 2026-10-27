@@ -2,6 +2,7 @@
   "algorithms": ["ExamplePeer/ExamplePeer.cpp"],
   "experiments": [
     {
+      "backend": "boostMq",
       "logFile": "build/tests/mqInvalidTopology.txt",
       "parameters": {},
       "topology": {

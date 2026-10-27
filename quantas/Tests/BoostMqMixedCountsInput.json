@@ -5,6 +5,7 @@
   ],
   "experiments": [
     {
+      "backend": "boostMq",
       "logFile": "build/tests/mqCountsFirst.txt",
       "parameters": {
         "changePeerType": false
@@ -18,6 +19,7 @@
       "rounds": 1
     },
     {
+      "backend": "boostMq",
       "logFile": "build/tests/mqCountsSecond.txt",
       "parameters": {
         "changePeerType": false

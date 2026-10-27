@@ -5,6 +5,7 @@
   ],
   "experiments": [
     {
+      "backend": "boostMq",
       "logFile": "build/tests/mqReadyTimeout.txt",
       "parameters": {
         "changePeerType": false

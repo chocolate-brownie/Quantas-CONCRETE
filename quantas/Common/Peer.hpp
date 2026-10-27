@@ -25,6 +25,7 @@ along with QUANTAS. If not, see <https://www.gnu.org/licenses/>.
 #include "NetworkInterface.hpp"
 #include "RoundManager.hpp"
 #include "quantas/Common/Concrete/Backends/TCP/NetworkInterfaceConcrete.hpp" // IWYU pragma: keep
+#include <chrono>
 #include <functional>
 #include <iostream>
 #include <stdexcept>
@@ -100,6 +101,8 @@ class Peer {
     // Return this peer's algorithm metrics, or an empty object if not implemented.
     virtual nlohmann::json collectAlgoMetrics() const { return nlohmann::json::object(); }
     virtual bool localProtocolCompleted() const { return false; }
+    // Concrete only: the wall-clock end of the run, for computations that must stop in time.
+    virtual void setRunDeadline(std::chrono::steady_clock::time_point deadline) {}
 
     /* Called once after constructing all peers (subclass can parse 'parameters'
      * as needed) */

@@ -119,14 +119,15 @@ void NetworkInterfaceZMq::unicastTo(nlohmann::json msg, const interfaceId& dest)
 }
 
 /* Steps: receive()
-  → non-blocking recv of raw bytes from the PULL inbox until it is empty
+  → non-blocking recv of raw bytes from the PULL inbox until it is empty or kMaxReceivePerCall
   → read Packet via boost::archive::binary_iarchive
   → push Packet into _inStream */
 void NetworkInterfaceZMq::receive() {
     try {
         zmq::message_t raw;
         // dontwait: returns an empty result instead of blocking once the inbox is empty
-        while (_inbox.recv(raw, zmq::recv_flags::dontwait)) {
+        for (std::size_t n = 0;
+             n < kMaxReceivePerCall && _inbox.recv(raw, zmq::recv_flags::dontwait); ++n) {
             _transportMetrics.receivedRaw++;
 
             std::stringstream ss(raw.to_string());

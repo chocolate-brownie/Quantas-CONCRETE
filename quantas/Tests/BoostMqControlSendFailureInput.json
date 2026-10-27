@@ -5,6 +5,7 @@
   ],
   "experiments": [
     {
+      "backend": "boostMq",
       "logFile": "build/tests/mqControlSendFailure.txt",
       "parameters": {
         "changePeerType": false

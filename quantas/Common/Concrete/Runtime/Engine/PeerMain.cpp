@@ -250,7 +250,7 @@ int main(int argc, char** argv) {
         const nlohmann::json& experiment = (*config)["experiments"].at(expIndex);
         quantas::RuntimeExperimentConfig exp = quantas::parseRuntimeExperiment(*config, expIndex);
 
-        /* Create the experiment's backend ("backend" in the JSON, default "boostMq"), let it read
+        /* Create the experiment's backend ("backend" in the JSON, default "zeroMq"), let it read
          * its own settings, and create the control plane that talks to the leader. */
         const auto backend =
             quantas::BackendFactory::makeBackend(experiment.value("backend", "zeroMq"));

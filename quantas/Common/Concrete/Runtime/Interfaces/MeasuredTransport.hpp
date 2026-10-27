@@ -5,8 +5,14 @@
 #define QUANTAS_COMMON_CONCRETE_RUNTIME_INTERFACES_MEASUREDTRANSPORT_HPP
 
 #include "quantas/Common/Concrete/Runtime/Metrics/TransportMetrics.hpp"
+#include <cstddef>
 
 namespace quantas {
+
+/* Most messages one receive() call takes from the inbox; the rest wait for the next call. Keeps
+ * one run-loop iteration short, so the run deadline and STOP are checked often (measured: draining
+ * a ~20,000-message ZeroMQ inbox in one call took up to 0.9 s). Same value for every backend. */
+constexpr std::size_t kMaxReceivePerCall = 1000;
 
 /* A backend's transport inherits from both NetworkInterface (send and receive) and this class
  * (counters), e.g. class NetworkInterfaceZMq : public NetworkInterface, public MeasuredTransport.
