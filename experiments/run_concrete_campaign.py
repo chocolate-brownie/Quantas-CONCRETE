@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the Concrete CPA and Dolev campaigns on topologies_100, one (algorithm, family, k) at a time.
 
-CSVs are written to experiments/<CPA|Dolev>/csv/<concrete|zeroMq>_<family>_k<k>.csv
+CSVs are written to experiments/<CPA|Dolev>/csv/<concrete|zeroMq|abstract>_<family>_k<k>.csv
 ("concrete" = BoostMq).
 Interrupt with Ctrl+C at any time; rerun the same command to resume.
 """
@@ -20,8 +20,9 @@ CSV_DIRS = {"cpa": HERE / "CPA" / "csv", "dolev": HERE / "Dolev" / "csv"}
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--backend", choices=("concrete", "zeroMq"), default="concrete",
-                        help="Concrete backend: concrete (BoostMq, default) or zeroMq")
+    parser.add_argument("--backend", choices=("concrete", "zeroMq", "abstract"), default="concrete",
+                        help="concrete (BoostMq, default), zeroMq, or abstract (Lorenzo's Abstract "
+                             "QUANTAS, rerun on this machine)")
     parser.add_argument("--algorithm", choices=ALGORITHMS, action="append",
                         help="Algorithm to run (repeatable; default: cpa then dolev)")
     parser.add_argument("--family", choices=FAMILIES, action="append",

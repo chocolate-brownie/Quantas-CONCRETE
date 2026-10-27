@@ -260,13 +260,15 @@ def collect_rows(report_path, backend, expected_tests, base, run_error=""):
 
 def csv_columns(backend):
     metrics = ABSTRACT_METRICS if backend == "abstract" else CONCRETE_METRICS
-    return [*METADATA_COLUMNS, *metrics, "status", "failure_reason", "raw_report"]
+    return [*METADATA_COLUMNS, *metrics, "run_time_s", "status", "failure_reason", "raw_report"]
 
 
 def export_csv(campaign_dir, backend, csv_path):
     rows = []
     for path in (campaign_dir / backend).glob("*/experiment_*/result.json"):
-        rows.extend(read_json(path)["rows"])
+        result = read_json(path)
+        # Wall-clock time of the whole experiment process (tests = 1, so one row per experiment).
+        rows.extend({**row, "run_time_s": result["duration_seconds"]} for row in result["rows"])
     rows.sort(key=lambda row: (
         row["byzantine_count"], row["input_file"], row["experiment_index"], row["repetition"]
     ))

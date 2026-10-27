@@ -2,11 +2,16 @@
 
 **Goal:** reproduce the paper's figures (MT-CPA and MT-Dolev) on Concrete QUANTAS with the same setup as Abstract, and compare the two.
 
-**Current step:** the Concrete campaign for Figures 2 and 3 is **finished** (2026-09-30; k=7, (t_s, t_l) = (5, 1) and (1, 5); 3,120 experiments). CPA: 1,560 of 1,560 succeeded. Dolev: 1,549 of 1,560; 11 failures (0.7%), all (5, 1), t = 3–5, all at the 120 s done timeout (§5). Figures 2 and 3 are reproduced in `experiments/figures/` (made by `figures_2_3.py`): `option1/` (paper layout, per backend), `option2/` (combined), `individual/` (one graph per panel). Abstract results already exist (Lorenzo's `results_100`), so Abstract doesn't need rerunning.
+**Current step (2026-10-27):** rerunning everything with the fixed code (deadline-bounded `k_disjoint`, 100 ms search slice, hard run deadline, `receive()` cap) on **BoostMq and ZeroMQ**, plus Abstract CPA on this machine for timing. The earlier Concrete results (2026-09-30) are archived in `experiments/archive/csv_before_deadline_fix_2026-10-27/`. Abstract metrics and Abstract Dolev times come from Lorenzo's `results_100`.
 
 ## How to run
 
-Figures 2 and 3 (run this first):
+Everything, overnight (BoostMq, ZeroMQ, Abstract CPA, figures, then the appendix runs; resumable, keeps the PC awake):
+```sh
+cd ~/Documents/Quantas && .venv/bin/python experiments/run_overnight.py
+```
+
+Figures 2 and 3 only, one backend (`--backend concrete|zeroMq|abstract`):
 ```sh
 cd ~/Documents/Quantas && .venv/bin/python experiments/run_concrete_campaign.py --k 7 --pair 5,1 --pair 1,5
 ```

@@ -1,0 +1,8 @@
+Backend,Machine,Algorithm,Experiments,Total (h),Mean (s),Median (s),Max (s)
+Abstract,Lorenzo's machine,CPA,1560,0.11,0.26,0.26,0.6
+Abstract,Lorenzo's machine,DOLEV,1560,16.32,37.65,0.44,22189.5
+Abstract,this machine,CPA,1,0.0,0.33,0.33,0.3
+BoostMq,this machine,CPA,15,0.0,1.01,1.0,1.1
+BoostMq,this machine,DOLEV,15,0.0,1.16,1.19,1.2
+ZeroMQ,this machine,CPA,15,0.0,0.42,0.42,0.4
+ZeroMQ,this machine,DOLEV,15,0.0,0.48,0.47,0.6
