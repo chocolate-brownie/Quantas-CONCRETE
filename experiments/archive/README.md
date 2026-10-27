@@ -6,6 +6,7 @@ Archived on 2026-09-30, before the Concrete campaigns on Lorenzo's `topologies_1
 |---|---|
 | `cpa_edge_remover_old_inputs/` | Finished CPA edge-remover campaign (Abstract and Concrete, k = 3, 5, 7; 10 tests per experiment). It used the **old, buggy** `quantas/MTRCPeer/topologies/` inputs, whose `both` networks were Dolev-trimmed. It contains the CSVs, `combined_figures.py` and its figures (still runnable in place), and the per-k runner scripts. The runner scripts no longer work: they imported the shared runner, which moved to `experiments/campaign_runner.py`. |
 | `pilots_2026-09-30/` | Pilot rows from testing the new runner (CPA k = 3 and 7, Dolev k = 3), made with earlier settings. |
+| `csv_before_deadline_fix_2026-10-27/` | Partial `topologies_100` campaign CSVs (BoostMq CPA k = 3 edge remover and k = 7; Dolev k = 7; one 2-row ZeroMQ pilot), made before the Concrete Dolev fixes of 2026-10-27 (deadline-bounded `k_disjoint`, 100 ms search slice, hard run deadline, `receive()` cap). Dolev rows include stalls; CPA rows predate the `receive()` cap. Raw outputs: `Results/_archive_2026-10-27/topologies_100_before_deadline_fix/`. |
 
 Raw outputs (git-ignored) were moved to `Results/_archive_2026-09-30/`:
 - `run_experiments/edge_remover/`: raw files of the old CPA campaign.
