@@ -13,6 +13,8 @@ Outputs (experiments/figures/):
                                                      delivery column: rounds and ms cannot share an axis)
   option2/delivery_combined.{pdf,png}                delivery for both figures, one column per backend
   individual/figure{2,3}/{cpa,dolev}_<metric>.{pdf,png}  one graph per panel, same line styles
+  option2/figure{2,3}_runtime.{pdf,png}              execution time per experiment vs f (log scale)
+  individual/figure{2,3}/{cpa,dolev}_runtime.{pdf,png}  the same, one algorithm per graph
   run_time.{md,csv}, run_time.{pdf,png}             execution time per backend and algorithm
 """
 
@@ -241,18 +243,66 @@ def delivery_combined(backends):
 
 def lorenzo_run_times():
     """RunTime (s) of Lorenzo's Abstract runs for the Figure 2/3 experiments (his machine)."""
-    name = re.compile(r"(cpa|dolev)_.+_100_(\d+)_\d+_(\d+)_(\d+)_(both|dolev)_network\d+\.json")
+    name = re.compile(r"(cpa|dolev)_(.+)_100_(\d+)_(\d+)_(\d+)_(\d+)_(both|dolev)_network\d+\.json")
     rows = []
     for path in ABSTRACT_RESULTS.glob("*.json"):
         m = name.fullmatch(path.name)
-        if m and int(m[2]) == K and (int(m[3]), int(m[4])) in FIGURES.values():
-            rows.append(dict(alg=m[1], run_time_s=json.loads(path.read_text())["RunTime"]))
+        if m and int(m[3]) == K and (int(m[5]), int(m[6])) in FIGURES.values():
+            rows.append(dict(alg=m[1], family=m[2], group=m[7], k=int(m[3]), t=int(m[4]),
+                             ts=int(m[5]), tl=int(m[6]),
+                             run_time_s=json.loads(path.read_text())["RunTime"]))
     return pd.DataFrame(rows)
+
+
+def concrete_run_times(prefix):
+    """run_time_s of one backend's successful k=7 experiments, in lorenzo_run_times' columns."""
+    d = read_csvs(prefix)
+    if d.empty:
+        return d
+    d = d[d.status == "success"]
+    return pd.DataFrame(dict(alg=d.alg, family=d.family, group=d.network_group, k=d.k,
+                             t=d.byzantine_count, ts=d.ts, tl=d.tl, run_time_s=d.run_time_s))
+
+
+def run_time_figures(backends):
+    """Execution time per experiment vs f, Lorenzo's style: Abstract solid (his machine), BoostMq
+    dashed, ZeroMQ dotted (this machine). Log scale: Abstract Dolev reaches hours."""
+    sources = [dict(b, data=lorenzo_run_times() if b["file"] == "abstract"
+                    else concrete_run_times(b["prefix"])) for b in backends]
+    handles, labels = comparison_handles(backends)
+    labels = [label.replace("Abstract", "Abstract (Lorenzo's machine)") for label in labels]
+
+    def draw(ax, alg, ts, tl):
+        for s in sources:
+            d = s["data"]
+            d = d[(d.alg == alg) & (d.k == K) & (d.ts == ts) & (d.tl == tl)]
+            plot_lines(ax, d.groupby(["family", "group", "t"])[["run_time_s"]].mean(),
+                       "run_time_s", s["style"])
+        style(ax, "Execution Time", alg, "Avg time per \n experiment (s)")
+        ax.set_yscale("log")
+
+    for number, (ts, tl) in FIGURES.items():
+        fig, axes = plt.subplots(1, 2, figsize=(W * 3, H * 1.6))
+        for ax, alg in zip(axes, ALGS):
+            draw(ax, alg, ts, tl)
+        fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 1.0), ncol=3,
+                   frameon=True, fontsize=FT - 4)
+        fig.suptitle(f"Figure {number}: (t_s, t_l) = ({ts}, {tl}), execution time",
+                     fontsize=FT + 2, y=1.12)
+        fig.subplots_adjust(top=0.62, wspace=0.35)
+        save(fig, HERE / "option2" / f"figure{number}_runtime")
+        for alg in ALGS:
+            fig, ax = plt.subplots(figsize=(W * 2, H * 1.6))
+            draw(ax, alg, ts, tl)
+            fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 1.0), ncol=2,
+                       frameon=True, fontsize=FT - 4)
+            fig.subplots_adjust(top=0.58)
+            save(fig, HERE / "individual" / f"figure{number}" / f"{alg}_runtime")
 
 
 def run_times():
     """Execution time per backend and algorithm, Figure 2/3 experiments only."""
-    sources = [("Abstract", "Lorenzo's machine", lorenzo_run_times())]
+    sources = [("Abstract", "Lorenzo's machine", lorenzo_run_times()[["alg", "run_time_s"]])]
     for prefix, name in (("abstract", "Abstract"), ("concrete", "BoostMq"), ("zeroMq", "ZeroMQ")):
         d = read_csvs(prefix)
         if not d.empty:
@@ -302,12 +352,13 @@ def main():
         if data.empty:
             print(f"No {name} CSVs yet; skipped")
             continue
-        backends.append(dict(name=name, file=file, style=linestyle, data=data))
+        backends.append(dict(name=name, file=file, style=linestyle, data=data, prefix=prefix))
     for number, (ts, tl) in FIGURES.items():
         option1(number, ts, tl, backends)
         option2(number, ts, tl, backends)
         individual(number, ts, tl, backends)
     delivery_combined(backends)
+    run_time_figures(backends)
     print(run_times().to_string(index=False))
     print(f"Saved figures to {HERE}")
 
