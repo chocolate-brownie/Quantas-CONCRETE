@@ -2,7 +2,7 @@
 
 **Goal:** reproduce the paper's figures (MT-CPA and MT-Dolev) on Concrete QUANTAS with the same setup as Abstract, and compare the two.
 
-**Current step (2026-10-27):** rerunning everything with the fixed code (deadline-bounded `k_disjoint`, 100 ms search slice, hard run deadline, `receive()` cap) on **BoostMq and ZeroMQ**, plus Abstract CPA on this machine for timing. The earlier Concrete results (2026-09-30) are archived in `experiments/archive/csv_before_deadline_fix_2026-10-27/`. Abstract metrics and Abstract Dolev times come from Lorenzo's `results_100`.
+**Current step (2026-10-28):** all campaigns are **finished** with the fixed code (deadline-bounded `k_disjoint`, 100 ms search slice, hard run deadline, `receive()` cap). Overnight run 2026-10-27 21:26 to 05:06 (`Results/overnight_2026-10-27_2126.log`): BoostMq and ZeroMQ 5,820 CPA + 5,820 Dolev experiments each (all k, all pairs), Abstract CPA 1,560 (Figures 2 and 3, this machine, for timing); 0 failures. Figures 2 and 3 and `run_time.md` are in `experiments/figures/`. Abstract metrics and Abstract Dolev times come from Lorenzo's `results_100`. The earlier Concrete results (2026-09-30) are archived in `experiments/archive/csv_before_deadline_fix_2026-10-27/`.
 
 ## How to run
 
