@@ -1,0 +1,43 @@
+% Tool paper: Abstract vs Concrete QUANTAS.
+% Same format as the QUANTAS paper (ApPLIED '22, ACM sigconf). Compile with:
+%   latexmk -pdf main.tex      (or upload this folder to Overleaf)
+\documentclass[sigconf]{acmart}
+
+% Venue, DOI and copyright are unknown for now.
+\setcopyright{none}
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\acmConference{}{}{}
+
+\usepackage{xcolor}
+% Placeholder for text still to write; remove before submission.
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\begin{document}
+
+\title{\todo{Title}}
+% Placeholder for the title: Concrete QUANTAS: running abstract-simulator algorithms on real processes
+
+% Authors are not decided yet.
+\author{Anonymous}
+\affiliation{\institution{Anonymous}\country{}}
+
+\begin{abstract}
+\todo{Abstract (write last): problem, contribution, main results.}
+\end{abstract}
+
+\keywords{\todo{keywords}}
+
+\maketitle
+
+\input{sections/introduction}
+\input{sections/architecture}
+\input{sections/usage}
+\input{sections/evaluation}
+\input{sections/discussion}
+\input{sections/conclusion}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+\end{document}

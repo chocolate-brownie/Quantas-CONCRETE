@@ -16,6 +16,7 @@ Outputs (experiments/figures/):
   option2/figure{2,3}_runtime.{pdf,png}              execution time per experiment vs f (log scale)
   individual/figure{2,3}/{cpa,dolev}_runtime.{pdf,png}  the same, one algorithm per graph
   run_time.{md,csv}, run_time.{pdf,png}             execution time per backend and algorithm
+  paper/figure{2,3}_{combined,runtime}, paper/delivery_combined  Abstract vs BoostMq only (tool paper)
 """
 
 import json
@@ -68,7 +69,9 @@ def read_csvs(prefix):
     """All rows of one backend's k=7 CSVs, with an `alg` column; empty if none exist yet."""
     frames = [pd.read_csv(path).assign(alg=alg)
               for alg, directory in CSV.items()
-              for path in sorted(directory.glob(f"{prefix}_*_k{K}.csv"))]
+              for path in sorted(directory.glob(f"{prefix}_*_k{K}.csv"))
+              # The --within-bounds correctness check (no time limits) is a different experiment.
+              if "_within_bounds_" not in path.name]
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
@@ -162,7 +165,7 @@ def option1(number, ts, tl, backends):
         save(fig, HERE / "option1" / f"figure{number}_{b['file']}")
 
 
-def option2(number, ts, tl, backends):
+def option2(number, ts, tl, backends, out=HERE / "option2"):
     fig, axes = plt.subplots(2, 3, figsize=(W * 3, H * 2), sharey=False)
     for row, alg in enumerate(ALGS):
         tables = [means(b["data"], alg, ts, tl) for b in backends]
@@ -183,7 +186,7 @@ def option2(number, ts, tl, backends):
     names = ", ".join(b["name"] for b in backends)
     fig.suptitle(f"Figure {number}: (t_s, t_l) = ({ts}, {tl}), {names}", fontsize=FT + 4, y=1.1)
     fig.subplots_adjust(top=0.74, wspace=0.45, hspace=0.65)
-    save(fig, HERE / "option2" / f"figure{number}_combined")
+    save(fig, out / f"figure{number}_combined")
 
 
 def individual(number, ts, tl, backends):
@@ -219,7 +222,7 @@ def individual(number, ts, tl, backends):
         save(fig, out / f"{alg}_delivery")
 
 
-def delivery_combined(backends):
+def delivery_combined(backends, out=HERE / "option2"):
     """Delivery time for both figures in one figure: rows = algorithms, columns = figure x backend."""
     cols = len(FIGURES) * len(backends)
     fig, axes = plt.subplots(2, cols, figsize=(W * cols, H * 2))
@@ -238,7 +241,7 @@ def delivery_combined(backends):
     fig.suptitle("Delivery time, Figures 2 and 3 (Abstract in rounds, Concrete in ms)",
                  fontsize=FT + 4, y=1.08)
     fig.subplots_adjust(top=0.78, wspace=0.45, hspace=0.6)
-    save(fig, HERE / "option2" / "delivery_combined")
+    save(fig, out / "delivery_combined")
 
 
 def lorenzo_run_times():
@@ -264,7 +267,7 @@ def concrete_run_times(prefix):
                              t=d.byzantine_count, ts=d.ts, tl=d.tl, run_time_s=d.run_time_s))
 
 
-def run_time_figures(backends):
+def run_time_figures(backends, out=HERE / "option2"):
     """Execution time per experiment vs f, Lorenzo's style: Abstract solid (his machine), BoostMq
     dashed, ZeroMQ dotted (this machine). Log scale: Abstract Dolev reaches hours."""
     sources = [dict(b, data=lorenzo_run_times() if b["file"] == "abstract"
@@ -290,7 +293,9 @@ def run_time_figures(backends):
         fig.suptitle(f"Figure {number}: (t_s, t_l) = ({ts}, {tl}), execution time",
                      fontsize=FT + 2, y=1.12)
         fig.subplots_adjust(top=0.62, wspace=0.35)
-        save(fig, HERE / "option2" / f"figure{number}_runtime")
+        save(fig, out / f"figure{number}_runtime")
+        if out != HERE / "option2":
+            continue  # per-algorithm graphs only for the all-backend set
         for alg in ALGS:
             fig, ax = plt.subplots(figsize=(W * 2, H * 1.6))
             draw(ax, alg, ts, tl)
@@ -359,6 +364,12 @@ def main():
         individual(number, ts, tl, backends)
     delivery_combined(backends)
     run_time_figures(backends)
+    # Tool paper: one machine = Abstract vs BoostMq only (ZeroMQ is evaluated on the cluster).
+    paper = [b for b in backends if b["name"] in ("Abstract", "BoostMq")]
+    for number, (ts, tl) in FIGURES.items():
+        option2(number, ts, tl, paper, HERE / "paper")
+    delivery_combined(paper, HERE / "paper")
+    run_time_figures(paper, HERE / "paper")
     print(run_times().to_string(index=False))
     print(f"Saved figures to {HERE}")
 

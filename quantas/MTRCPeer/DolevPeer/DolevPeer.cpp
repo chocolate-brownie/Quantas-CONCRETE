@@ -71,6 +71,7 @@ DolevPeer::DolevPeer(const DolevPeer &rhs) : Peer(rhs) {
     byzantineIds = rhs.byzantineIds;
     runDeadline = rhs.runDeadline;
     disjointSearchTimeouts = rhs.disjointSearchTimeouts;
+    searchSlice = rhs.searchSlice;
 }
 
 DolevPeer::~DolevPeer() = default;
@@ -84,6 +85,10 @@ void DolevPeer::initParameters(const std::vector<Peer *> &peers, json parameters
         isByzantine = true;
     }
     byzantineIds = byzantines;
+    if (parameters.contains("searchSliceMs")) {
+        if (parameters["searchSliceMs"] == "infinite") searchSlice = nullopt;
+        else searchSlice = chrono::milliseconds(parameters["searchSliceMs"].get<int>());
+    }
 }
 
 void DolevPeer::performComputation() {
@@ -173,9 +178,12 @@ void DolevPeer::checkInStrm() {
         receivedMessages[m] = modified_sets;
 
         modified_sets = remove_src(receivedMessages[m], 0);
-        // Concrete: one search may use at most kDisjointSearchSlice, so a value that can never be
-        // delivered (e.g. the forged one) cannot use up the run before the other values are checked.
-        const auto searchDeadline = min(runDeadline, chrono::steady_clock::now() + kDisjointSearchSlice);
+        // Concrete: one search may use at most searchSlice, so a value that can never be delivered
+        // (e.g. the forged one) cannot use up the run before the other values are checked.
+        // An infinite slice lets the search run to the end, as in Abstract.
+        const auto searchDeadline = searchSlice
+            ? min(runDeadline, chrono::steady_clock::now() + *searchSlice)
+            : runDeadline;
         bool timedOut = false;
         if (!delivered && k_disjoint(modified_sets, ts+1, searchDeadline, &timedOut)) {
             delivered = true;

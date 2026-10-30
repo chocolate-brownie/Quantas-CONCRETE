@@ -68,5 +68,21 @@ int main() {
         });
     }
 
+    // "infinite" time limits: both infinite is valid; an infinite window needs an infinite done
+    // timeout; any other string is rejected.
+    nlohmann::json infinite = validConfig();
+    infinite["experiments"][0]["windowMs"] = "infinite";
+    infinite["experiments"][0]["doneTimeoutMs"] = "infinite";
+    const quantas::RuntimeExperimentConfig unbounded =
+        quantas::parseRuntimeExperiment(infinite, 0);
+    assert(unbounded.windowMs == quantas::kInfiniteMs);
+    assert(unbounded.doneTimeoutMs == quantas::kInfiniteMs);
+
+    expectInvalid([](nlohmann::json& config) {
+        config["experiments"][0]["windowMs"] = "infinite";
+        config["experiments"][0]["doneTimeoutMs"] = 30000;
+    });
+    expectInvalid([](nlohmann::json& config) { config["experiments"][0]["windowMs"] = "forever"; });
+
     return 0;
 }

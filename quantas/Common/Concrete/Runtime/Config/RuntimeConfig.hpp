@@ -3,10 +3,15 @@
 
 #include "quantas/Common/Json.hpp"
 #include <cstddef>
+#include <limits>
 #include <optional>
 #include <string>
 
 namespace quantas {
+
+/* "infinite" in the input: no time limit, wait until the condition is met. Stored as the largest
+ * int (about 24.8 days) so every deadline computation stays a plain addition. */
+constexpr int kInfiniteMs = std::numeric_limits<int>::max();
 
 struct RuntimeExperimentConfig {
     int initialPeers{0};

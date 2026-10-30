@@ -15,6 +15,8 @@ Lorenzo's `topologies_100` files are not modified.
 - **2026-09-29: `windowMs` added.** The peer run window was hardcoded to 2 s (`ConcreteMqPeer.cpp`, the `runForDuration` call). It is now read from the experiment JSON (`RuntimeConfig.cpp`, default 2000, must be less than `doneTimeoutMs`) and written to `leader_report.json`.
 - **2026-09-29: queue capacity set per experiment** through the existing `boostMq.dataQueueCapacity` option. No backend code change.
 - **Pending: `k_disjoint` speed-up.** It must not change the result.
+- **2026-10-30: "infinite" time limits (supervisor's request).** `windowMs` and `doneTimeoutMs` accept `"infinite"` (no time limit: run until every correct peer has delivered; stored as the largest int, about 24.8 days; an infinite window needs an infinite `doneTimeoutMs`). The Dolev per-search limit is no longer hardcoded: `parameters.searchSliceMs` (default 100, or `"infinite"`). Use all three as infinite only within bounds (f ≤ t_s and f ≤ t_l), to check correctness; beyond them a search may never end. Checked on ZeroMQ, ER k=7: (5, 1) f=1 and (3, 3) f=3 both gave 100% liveness and safety, 0 search timeouts.
+- **2026-10-30: `--within-bounds` campaign mode.** `run_concrete_campaign.py --within-bounds` runs only experiments with f ≤ min(t_s, t_l) (for CPA also only `both` networks, which have the k-level ordering CPA needs), with all three limits infinite, and kills an experiment after 1 h (recorded as failed). Results go to `Results/run_experiments/topologies_100_within_bounds/` and `<backend>_within_bounds_<family>_k<k>.csv`. Pilot: ZeroMQ Dolev ER k=3, 3 experiments, all 100% liveness and safety.
 
 ## Findings (2026-09-30, k=3, t=1, 5 edge-remover networks)
 

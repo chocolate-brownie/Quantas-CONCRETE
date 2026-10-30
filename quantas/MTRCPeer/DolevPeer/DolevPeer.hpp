@@ -21,6 +21,8 @@ QUANTAS. If not, see <https://www.gnu.org/licenses/>.
 #include <unordered_set>
 #include <vector>
 #include <map>
+#include <chrono>
+#include <optional>
 #include <iostream>
 
 using namespace std;
@@ -59,7 +61,7 @@ class DolevPeer : public Peer {
     vector<int> byzantineIds = {}; // byzantine ids from the parameters (Concrete stand-in for allPeers)
     chrono::steady_clock::time_point runDeadline = chrono::steady_clock::time_point::max(); // Concrete run end
     int disjointSearchTimeouts = 0; // k_disjoint searches stopped by the slice or runDeadline
-    static constexpr chrono::milliseconds kDisjointSearchSlice{100}; // Concrete: max time per search
+    optional<chrono::milliseconds> searchSlice = chrono::milliseconds(100); // Concrete: max time per search, nullopt = infinite ("searchSliceMs")
 
 
   private:

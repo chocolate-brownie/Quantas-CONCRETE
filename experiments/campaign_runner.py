@@ -54,6 +54,11 @@ CONCRETE_SETTINGS = {
         "doneTimeoutMs": 120000,
     },
 }
+# --within-bounds (supervisor's correctness check): no time limits, and only experiments where the
+# paper guarantees delivery and agreement (f <= min(ts, tl)). Any failure there is an
+# implementation bug, not a cut-off. WITHIN_BOUNDS_CAP_S still kills a run that never ends.
+UNBOUNDED_SETTINGS = {"windowMs": "infinite", "doneTimeoutMs": "infinite"}
+WITHIN_BOUNDS_CAP_S = 3600
 QUEUE_NAME = re.compile(r"(?:mq_barrier|mq_done|peer_[0-9]+_(?:control|data))")
 
 ABSTRACT_METRICS = (
@@ -138,7 +143,7 @@ def source_identity(root):
     return {"source_sha256": hasher.hexdigest(), "compiler": compiler}
 
 
-def effective_input(original, index, backend):
+def effective_input(original, index, backend, within_bounds=False):
     config = copy.deepcopy(original)
     experiment = config["experiments"][index]
     peer = experiment["topology"]["initialPeerType"]
@@ -148,6 +153,9 @@ def effective_input(original, index, backend):
     config["experiments"] = [experiment]
     if backend != "abstract":
         experiment.update(copy.deepcopy(CONCRETE_SETTINGS[backend]))
+    if within_bounds:
+        experiment.update(UNBOUNDED_SETTINGS)
+        experiment["parameters"]["searchSliceMs"] = "infinite"  # read by DolevPeer only
     experiment["logFile"] = (
         "abstract.json" if backend == "abstract" else Path(experiment["logFile"]).name
     )
@@ -280,7 +288,21 @@ def export_csv(campaign_dir, backend, csv_path):
     temporary.replace(csv_path)
 
 
-def run_process(command, cwd, log_path):
+def stop_process_group(process):
+    process.send_signal(signal.SIGTERM)
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def run_process(command, cwd, log_path, timeout=None):
+    """Return the exit code; on timeout, stop the whole process group and raise TimeoutExpired."""
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(
             command,
@@ -290,18 +312,9 @@ def run_process(command, cwd, log_path):
             start_new_session=True,
         )
         try:
-            return process.wait()
-        except KeyboardInterrupt:
-            process.send_signal(signal.SIGTERM)
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            return process.wait(timeout=timeout)
+        except (KeyboardInterrupt, subprocess.TimeoutExpired):
+            stop_process_group(process)
             raise
 
 
@@ -340,9 +353,9 @@ def build_backend(backend, root, backend_dir, config):
 
 
 def execute_experiment(backend, path, original, index, base, directory, binaries,
-                       campaign_dir, csv_path):
+                       campaign_dir, csv_path, within_bounds=False):
     attempt = Path(tempfile.mkdtemp(prefix="attempt_", dir=directory))
-    config = effective_input(original, index, backend)
+    config = effective_input(original, index, backend, within_bounds)
     input_path = attempt / "input.json"
     write_json(input_path, config)
     if backend == "abstract":
@@ -369,9 +382,16 @@ def execute_experiment(backend, path, original, index, base, directory, binaries
     error = ""
     started = time.time()
     try:
-        code = run_process(command, attempt, attempt / "console.log")
+        code = run_process(command, attempt, attempt / "console.log",
+                           WITHIN_BOUNDS_CAP_S if within_bounds else None)
         if code:
             error = f"Process exited with code {code}"
+    except subprocess.TimeoutExpired:
+        error = f"Timed out after {WITHIN_BOUNDS_CAP_S} s (no time limits; still running)"
+        # The killed processes cannot remove their queues; nothing else is running now.
+        for leftover in Path("/dev/shm").iterdir():
+            if QUEUE_NAME.fullmatch(leftover.name):
+                leftover.unlink()
     except KeyboardInterrupt:
         interrupted = True
         error = "Interrupted"
@@ -404,7 +424,7 @@ def execute_experiment(backend, path, original, index, base, directory, binaries
 
 
 def run(backend, algorithm, family, k, max_t, limit_experiments, campaign_dir, csv_path, abstract_root,
-        pairs=None):
+        pairs=None, within_bounds=False):
     paths = input_paths(algorithm, family, k, max_t)
     root = abstract_root if backend == "abstract" else REPO_ROOT
     identity = source_identity(root)
@@ -420,11 +440,13 @@ def run(backend, algorithm, family, k, max_t, limit_experiments, campaign_dir, c
             parameters = experiment["parameters"]
             if pairs and (parameters["ts"], parameters["tl"]) not in pairs:
                 continue
-            jobs.append((
-                path,
-                index,
-                experiment_metadata(path, index, experiment, backend, algorithm, family, k),
-            ))
+            if within_bounds and len(parameters["byzantines"]) > min(parameters["ts"], parameters["tl"]):
+                continue
+            base = experiment_metadata(path, index, experiment, backend, algorithm, family, k)
+            # CPA's guarantee also needs a k-level ordering, which only the "both" networks have.
+            if within_bounds and algorithm == "cpa" and base["network_group"] != "both":
+                continue
+            jobs.append((path, index, base))
 
     campaign_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = campaign_dir / "manifest.json"
@@ -474,7 +496,7 @@ def run(backend, algorithm, family, k, max_t, limit_experiments, campaign_dir, c
         backend,
         root,
         backend_dir,
-        effective_input(originals[first_path], first_index, backend),
+        effective_input(originals[first_path], first_index, backend, within_bounds),
     )
     failures = 0
     for path, index, base, directory in pending:
@@ -493,6 +515,7 @@ def run(backend, algorithm, family, k, max_t, limit_experiments, campaign_dir, c
                 binaries,
                 campaign_dir,
                 csv_path,
+                within_bounds,
             )
         except ExperimentFailed as error:
             # A failed test is a result (e.g. a Dolev stall past doneTimeoutMs); record it and go on.
@@ -532,9 +555,19 @@ def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover
         action="append",
         help="Run only experiments with this TS,TL threshold pair (repeatable, e.g. --pair 5,1)",
     )
+    parser.add_argument(
+        "--within-bounds",
+        action="store_true",
+        help="Correctness check: only f <= min(ts, tl), with no time limits (Concrete only; "
+             f"each experiment is killed after {WITHIN_BOUNDS_CAP_S} s)",
+    )
     args = parser.parse_args(argv)
+    if args.within_bounds and backend == "abstract":
+        parser.error("--within-bounds is for the Concrete backends")
     csv_path = Path(csv_path or Path(script_file).resolve().with_suffix(".csv"))
-    campaign_dir = REPO_ROOT / "Results/run_experiments/topologies_100" / algorithm / family / f"k{k}"
+    # Kept apart from the normal campaign: different settings, so separate checkpoints.
+    runs = "topologies_100_within_bounds" if args.within_bounds else "topologies_100"
+    campaign_dir = REPO_ROOT / "Results/run_experiments" / runs / algorithm / family / f"k{k}"
     lock_path = REPO_ROOT / "Results/.edge-remover-runner.lock"
     lock_path.parent.mkdir(exist_ok=True)
     with lock_path.open("a") as lock:
@@ -559,6 +592,7 @@ def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover
                 csv_path,
                 args.abstract_root.resolve(),
                 args.pair,
+                args.within_bounds,
             )
         except KeyboardInterrupt:
             print(

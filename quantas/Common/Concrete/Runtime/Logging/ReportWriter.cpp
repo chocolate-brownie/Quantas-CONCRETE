@@ -64,8 +64,11 @@ nlohmann::json ReportWriter::makeBaseExperimentReport(size_t expIndex,
     report["rounds"] = exp.rounds;
     report["testCount"] = exp.tests;
 
-    report["doneTimeoutMs"] = exp.doneTimeoutMs;
-    report["windowMs"] = exp.windowMs;
+    const auto timeLimit = [](int ms) -> nlohmann::json {
+        return ms == kInfiniteMs ? nlohmann::json("infinite") : nlohmann::json(ms);
+    };
+    report["doneTimeoutMs"] = timeLimit(exp.doneTimeoutMs);
+    report["windowMs"] = timeLimit(exp.windowMs);
 
     report["tests"] = nlohmann::json::array();
     return report;
