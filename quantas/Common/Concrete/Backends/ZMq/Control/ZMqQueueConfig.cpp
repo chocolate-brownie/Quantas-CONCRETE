@@ -21,10 +21,6 @@ ZMqQueueConfig parseZMqConfig(const nlohmann::json& experiment, int initialPeers
     if (!zeroMq.is_object())
         throw std::runtime_error("zeroMq must be a JSON object");
 
-    /* TODO:
-     * Here goes any necessary queue config settings that I might need to manually parse from
-     * the JSON file, ref: BoostMqQueueConfig.cpp */
-
     if (zeroMq.contains("dataSendTimeoutMs")) {
         const auto& value = zeroMq["dataSendTimeoutMs"];
 
@@ -55,11 +51,11 @@ ZMqQueueConfig parseZMqConfig(const nlohmann::json& experiment, int initialPeers
     return config;
 }
 
-/* @brief Check for the endpoint lenght (should be shorter than 107 chars), the largest number of
- * neighbours fits under the limits (1 + maxDegree < max_sockets and below the RLMIT_NOFILE fd
- * limit), no duplicate peerids are allowed */
+/* @brief Check that no peer ID is assigned twice, that the largest number of neighbours fits the
+ * socket and file-descriptor limits (1 + maxDegree < ZMQ_MAX_SOCKETS and RLIMIT_NOFILE), and that
+ * the longest ipc path is shorter than 107 characters. */
 void validateZMqAssignmentPayloads(const std::vector<PeerAssignment>& assignments,
-                                   const ZMqQueueConfig& queueConfig, std::size_t experimentIndex) {
+                                   std::size_t experimentIndex) {
     const std::string prefix =
         "ZeroMQ preflight failed for experiment " + std::to_string(experimentIndex) + ": ";
 
@@ -101,8 +97,8 @@ void validateZMqAssignmentPayloads(const std::vector<PeerAssignment>& assignment
                                  " characters, but Unix socket paths must be shorter than 107");
 }
 
-// @brief Create a zmq::context_t, bind a PULL socket to a test /tmp is writable and libzmq works.
-void preflightZMqQueues(const ZMqQueueConfig& queueConfig, std::size_t experimentIndex) {
+// @brief Bind a test PULL socket, to check that /tmp is writable and libzmq works.
+void preflightZMqQueues(std::size_t experimentIndex) {
     // The pid keeps the test endpoint unique, so it never collides with a peer's inbox.
     const std::string endpoint =
         "ipc:///tmp/quantas_zmq_preflight_" + std::to_string(getpid()) + ".ipc";

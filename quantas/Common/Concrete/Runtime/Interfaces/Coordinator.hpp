@@ -13,8 +13,6 @@
 
 namespace quantas {
 
-enum class StopMode { FixedRounds, DoneSignals };
-
 /* What the leader learns from waitForAllDone. */
 struct PeerCompletionResult {
     std::vector<interfaceId> completedPeers;
@@ -28,10 +26,8 @@ class Coordinator {
     virtual ~Coordinator() = default;
 
     // -------------------- Both sides --------------------
-    /* Bind this process to one experiment: its role (leader or peer), peer count and own ID. */
-    virtual void configureExperiment(std::size_t experimentIndex, const std::string& peerType,
-                                     bool isLeader, std::size_t totalPeers, interfaceId myId,
-                                     const std::string& logFileBase, StopMode stopMode) = 0;
+    /* Bind this process to one test: its role (leader or peer), peer count and own ID. */
+    virtual void configureExperiment(bool isLeader, std::size_t totalPeers, interfaceId myId) = 0;
     /* Create this process's incoming control channels (BoostMq: createBarrier / createInbox). */
     virtual void openChannels() = 0;
     /* Remove what openChannels created. */

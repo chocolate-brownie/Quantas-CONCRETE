@@ -14,9 +14,7 @@ class ZMqCoordinator : public Coordinator {
     ~ZMqCoordinator() override;
 
     // Both sides
-    void configureExperiment(std::size_t experimentIndex, const std::string& peerType,
-                             bool isLeader, std::size_t totalPeers, interfaceId myId,
-                             const std::string& logFileBase, StopMode stopMode) override;
+    void configureExperiment(bool isLeader, std::size_t totalPeers, interfaceId myId) override;
     void openChannels() override;
     void cleanUp() override;
 

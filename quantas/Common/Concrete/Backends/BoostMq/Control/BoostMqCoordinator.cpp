@@ -18,7 +18,6 @@
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/Logger.hpp"
 #include <algorithm>
-#include <atomic>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -97,43 +96,20 @@ void waitForQueueRemoval(const std::string& queueName) {
 }
 } // namespace
 
-/* Major operation: Load all coordinator state for one experiment. This sets the process role, peer
- * identity, peer count and queue settings, then clears state left by the previous test
- * or experiment. It does not create any operating-system queues. */
-void BoostMqCoordinator::configureExperiment(size_t /*experimentIndex*/,
-                                             const std::string& /*peerType*/, bool isLeader,
-                                             size_t totalPeers, interfaceId myId,
-                                             const std::string& /*logFileBase*/,
-                                             StopMode /*stopMode*/,
-                                             const BoostMqQueueConfig& queueConfig) {
-    _queueConfig = queueConfig;
+/* Utility: Keep the queue settings used by every test of this experiment. */
+BoostMqCoordinator::BoostMqCoordinator(const BoostMqQueueConfig& queueConfig)
+    : _queueConfig(queueConfig) {}
+
+/* Major operation: Load the coordinator state for one test: process role, peer count and peer
+ * identity, then clear state left by the previous test. It does not create any operating-system
+ * queues. */
+void BoostMqCoordinator::configureExperiment(bool isLeader, size_t totalPeers, interfaceId myId) {
     _isLeader = isLeader;
     _totalPeers = totalPeers;
     _myId = myId;
     _stopSignal = false;
     _myBarrier.reset();
     _myControlInbox.reset();
-}
-
-/* Utility: Keep the queue settings that the Coordinator version of configureExperiment uses. */
-BoostMqCoordinator::BoostMqCoordinator(const BoostMqQueueConfig& queueConfig)
-    : _queueConfig(queueConfig) {}
-
-/* Utility: Coordinator version of configureExperiment, with the queue settings given to the
- * constructor. */
-void BoostMqCoordinator::configureExperiment(size_t experimentIndex, const std::string& peerType,
-                                             bool isLeader, size_t totalPeers, interfaceId myId,
-                                             const std::string& logFileBase, StopMode stopMode) {
-    configureExperiment(experimentIndex, peerType, isLeader, totalPeers, myId, logFileBase,
-                        stopMode, _queueConfig);
-}
-
-/* Utility: Configure only the basic process role, peer count, and peer ID. This wrapper supplies
- * default experiment settings and delegates to the full configuration function. */
-void BoostMqCoordinator::configureProcess(bool isLeader, size_t totalPeers, interfaceId myId) {
-    BoostMqQueueConfig queueConfig;
-    queueConfig.controlQueueCapacity = totalPeers;
-    configureExperiment(0, "", isLeader, totalPeers, myId, "", StopMode::FixedRounds, queueConfig);
 }
 
 /* Utility: Create this process's control queues: the leader's shared queues or the peer's inboxes.
@@ -335,13 +311,11 @@ void BoostMqCoordinator::sendAssignments(const std::vector<PeerAssignment>& assi
                               << " peers=" << assignments.size();
 }
 
-/* Major operation: Send the normal start signal to every peer control inbox. Peers begin their
- * algorithm work only after receiving this signal. */
-void BoostMqCoordinator::broadcastStart() {
-    if (!_isLeader)
-        return;
-
-    QUANTAS_LOG_INFO("coord") << "leader broadcasting start to " << _totalPeers << " peers";
+/* Utility: Send one trigger (start or stop) to every peer control inbox. Throws when a queue is
+ * missing or stays full past controlSendTimeoutMs. */
+void BoostMqCoordinator::broadcastTrigger(unsigned int trigger, const std::string& name) {
+    QUANTAS_LOG_INFO("coord") << "leader broadcasting " << name << " to " << _totalPeers
+                              << " peers";
 
     for (size_t i = 0; i < _totalPeers; ++i) {
         const std::string queueName = peerControlQueueName(static_cast<interfaceId>(i));
@@ -349,46 +323,31 @@ void BoostMqCoordinator::broadcastStart() {
                               boost::posix_time::milliseconds(_queueConfig.controlSendTimeoutMs);
         try {
             message_queue mq(open_only, queueName.c_str());
-            const unsigned int trigger = kStartTrigger;
             if (!mq.timed_send(&trigger, sizeof(trigger), 0, deadline)) {
-                throw std::runtime_error("Timed out sending start to peer " + std::to_string(i) +
-                                         " after " +
+                throw std::runtime_error("Timed out sending " + name + " to peer " +
+                                         std::to_string(i) + " after " +
                                          std::to_string(_queueConfig.controlSendTimeoutMs) + " ms");
             }
         } catch (const interprocess_exception& ex) {
             throw std::runtime_error(
-                "Failed sending start to peer " + std::to_string(i) + " within " +
+                "Failed sending " + name + " to peer " + std::to_string(i) + " within " +
                 std::to_string(_queueConfig.controlSendTimeoutMs) + " ms: " + ex.what());
         }
     }
 }
 
+/* Major operation: Send the normal start signal to every peer control inbox. Peers begin their
+ * algorithm work only after receiving this signal. */
+void BoostMqCoordinator::broadcastStart() {
+    if (_isLeader)
+        broadcastTrigger(kStartTrigger, "start");
+}
+
 /* Major operation: Send the normal stop signal to every peer after the leader has received all
- * expected done notifications.  */
+ * expected done notifications. */
 void BoostMqCoordinator::broadcastStop() {
-    if (!_isLeader)
-        return;
-
-    QUANTAS_LOG_INFO("coord") << "leader broadcasting stop to " << _totalPeers << " peers";
-
-    for (size_t i = 0; i < _totalPeers; ++i) {
-        const std::string queueName = peerControlQueueName(static_cast<interfaceId>(i));
-        const auto deadline = boost::posix_time::microsec_clock::universal_time() +
-                              boost::posix_time::milliseconds(_queueConfig.controlSendTimeoutMs);
-        try {
-            message_queue mq(open_only, queueName.c_str());
-            const unsigned int trigger = kStopTrigger;
-            if (!mq.timed_send(&trigger, sizeof(trigger), 0, deadline)) {
-                throw std::runtime_error("Timed out sending stop to peer " + std::to_string(i) +
-                                         " after " +
-                                         std::to_string(_queueConfig.controlSendTimeoutMs) + " ms");
-            }
-        } catch (const interprocess_exception& ex) {
-            throw std::runtime_error(
-                "Failed sending stop to peer " + std::to_string(i) + " within " +
-                std::to_string(_queueConfig.controlSendTimeoutMs) + " ms: " + ex.what());
-        }
-    }
+    if (_isLeader)
+        broadcastTrigger(kStopTrigger, "stop");
 }
 
 /* Major recovery operation: Try to stop every peer after a timeout or other failure. Missing or
@@ -490,7 +449,7 @@ void BoostMqCoordinator::waitForStop() {
         unsigned int priority;
         message_queue::size_type recvd_size;
 
-        while (!_stopSignal.load()) {
+        while (!_stopSignal) {
             _myControlInbox->receive(buffer.data(), buffer.size(), recvd_size, priority);
             if (recvd_size != sizeof(unsigned int)) {
                 continue;
@@ -536,14 +495,11 @@ void BoostMqCoordinator::cleanUp() {
     }
 }
 
-/* Utility: Report whether this process has been asked to stop its current work. */
-bool BoostMqCoordinator::shouldStop() const { return _stopSignal.load(); }
-
 /* Utility: Check the peer's control queue without blocking so a STOP sent during protocol
  * execution can interrupt the time-based loop. */
 bool BoostMqCoordinator::pollForStop() {
-    if (_isLeader || _stopSignal.load())
-        return _stopSignal.load();
+    if (_isLeader || _stopSignal)
+        return _stopSignal;
     if (!_myControlInbox)
         return false;
 
@@ -560,21 +516,9 @@ bool BoostMqCoordinator::pollForStop() {
     if (trigger != kStopTrigger)
         return false;
 
-    requestStop("leader established all-correct BRB delivery");
+    QUANTAS_LOG_INFO("coord") << "peer " << _myId << " received stop signal";
+    _stopSignal = true;
     return true;
-}
-
-/* Major operation: Mark this process as stopping. The atomic exchange makes repeated requests
- * harmless, and the optional reason is written to the log. */
-void BoostMqCoordinator::requestStop(const std::string& reason) {
-    const bool alreadyStopping = _stopSignal.exchange(true);
-    if (alreadyStopping)
-        return;
-
-    if (!reason.empty())
-        QUANTAS_LOG_INFO("coord") << "peer " << _myId << " stop requested: " << reason;
-    else
-        QUANTAS_LOG_INFO("coord") << "peer " << _myId << " stop requested";
 }
 
 /* Major operation: Send one peer lifecycle event to the leader-owned completion queue. */
@@ -713,9 +657,5 @@ PeerCompletionResult BoostMqCoordinator::waitForAllDone(
 
     return result;
 }
-
-/* Utility: Destroy this process's coordinator object. Queue removal is handled explicitly by
- * cleanUp(), so the destructor has no extra work. */
-BoostMqCoordinator::~BoostMqCoordinator() {}
 
 } // namespace quantas

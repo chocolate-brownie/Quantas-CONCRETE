@@ -55,15 +55,13 @@ int main() {
     }
 
     // Preflight: a normal topology passes, a duplicated peer id fails.
-    const quantas::ZMqQueueConfig config;
-    quantas::validateZMqAssignmentPayloads({assignment(0, {1}), assignment(1, {0})}, config, 0);
+    quantas::validateZMqAssignmentPayloads({assignment(0, {1}), assignment(1, {0})}, 0);
     assert(throwsWithText(
         [&] {
-            quantas::validateZMqAssignmentPayloads({assignment(0, {1}), assignment(0, {1})},
-                                                   config, 3);
+            quantas::validateZMqAssignmentPayloads({assignment(0, {1}), assignment(0, {1})}, 3);
         },
         "ZeroMQ preflight failed for experiment 3: peer id 0 is assigned twice"));
-    quantas::preflightZMqQueues(config, 0); // binds a test ipc endpoint in /tmp
+    quantas::preflightZMqQueues(0); // binds a test ipc endpoint in /tmp
 
     return 0;
 }

@@ -19,11 +19,9 @@ int main(int argc, char* argv[]) {
     queueConfig.controlQueueCapacity = 2;
     queueConfig.dataQueueCapacity = 1;
 
-    quantas::BoostMqCoordinator coordinator;
+    quantas::BoostMqCoordinator coordinator(queueConfig);
     try {
-        coordinator.configureExperiment(0, "ExamplePeer", false, 2, peerId,
-                                        "build/tests/mqInvalidOutput.txt",
-                                        quantas::StopMode::FixedRounds, queueConfig);
+        coordinator.configureExperiment(false, 2, peerId);
         coordinator.createInbox();
         coordinator.sendReady();
         (void)coordinator.waitForAssignments();

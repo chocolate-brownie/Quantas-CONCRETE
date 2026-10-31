@@ -36,11 +36,6 @@ std::string peerDataQueueName(interfaceId id) { return "peer_" + std::to_string(
 
 NetworkInterfaceBMq::NetworkInterfaceBMq() = default;
 
-NetworkInterfaceBMq::NetworkInterfaceBMq(interfaceId pubId) : NetworkInterfaceBMq(pubId, pubId) {}
-
-NetworkInterfaceBMq::NetworkInterfaceBMq(interfaceId pubId, interfaceId internalId)
-    : NetworkInterface(pubId, internalId) {}
-
 NetworkInterfaceBMq::~NetworkInterfaceBMq() { clearAll(); }
 
 void NetworkInterfaceBMq::configure(interfaceId id, std::set<interfaceId> neighbors,
@@ -66,7 +61,6 @@ void NetworkInterfaceBMq::configure(interfaceId id, std::set<interfaceId> neighb
 
     // BoostMqCoordinator creates the data queue before this interface opens it.
     _myInbox.emplace(boost::interprocess::open_only, queueName.c_str());
-    _configured = true;
 }
 
 /* Steps: unicastTo(json msg, dest)
@@ -156,16 +150,7 @@ void NetworkInterfaceBMq::receive() {
     }
 }
 
-void NetworkInterfaceBMq::clearAll() { NetworkInterface::clearAll(); }
-
 TransportMetrics NetworkInterfaceBMq::transportMetrics() const { return _transportMetrics; }
-
-std::size_t NetworkInterfaceBMq::getPendingMessageCount() const {
-    if (!_myInbox.has_value())
-        return 0;
-
-    return _myInbox->get_num_msg();
-}
 
 void NetworkInterfaceBMq::resetTransportMetrics() { _transportMetrics = {}; }
 

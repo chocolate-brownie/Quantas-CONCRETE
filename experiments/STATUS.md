@@ -2,7 +2,9 @@
 
 **Goal:** reproduce the paper's figures (MT-CPA and MT-Dolev) on Concrete QUANTAS with the same setup as Abstract, and compare the two.
 
-**Current step (2026-10-28):** all campaigns are **finished** with the fixed code (deadline-bounded `k_disjoint`, 100 ms search slice, hard run deadline, `receive()` cap). Overnight run 2026-10-27 21:26 to 05:06 (`Results/overnight_2026-10-27_2126.log`): BoostMq and ZeroMQ 5,820 CPA + 5,820 Dolev experiments each (all k, all pairs), Abstract CPA 1,560 (Figures 2 and 3, this machine, for timing); 0 failures. Figures 2 and 3 and `run_time.md` are in `experiments/figures/`. Abstract metrics and Abstract Dolev times come from Lorenzo's `results_100`. The earlier Concrete results (2026-09-30) are archived in `experiments/archive/csv_before_deadline_fix_2026-10-27/`.
+**Current step (2026-10-31):** overnight rerun **finished** 05:24, 25,020 experiments, 0 failures; results match the previous run (see `experiments/overnight_report_2026-10-31.md`). Started 21:41 on the cleaned-up Concrete code (dead code removed, no behaviour change; tests and smoke runs unchanged) so the paper's numbers come from the final code. Log: `Results/overnight_2026-10-30_2141.log`. The previous run's CSVs are in `experiments/archive/csv_before_cleanup_2026-10-30/`; within-bounds logs moved to `Results/run_experiments/topologies_100_within_bounds/logs/`.
+
+**Previous step (2026-10-28):** all campaigns are **finished** with the fixed code (deadline-bounded `k_disjoint`, 100 ms search slice, hard run deadline, `receive()` cap). Overnight run 2026-10-27 21:26 to 05:06 (`Results/_archive_2026-10-30/topologies_100_before_cleanup/overnight_2026-10-27_2126.log`): BoostMq and ZeroMQ 5,820 CPA + 5,820 Dolev experiments each (all k, all pairs), Abstract CPA 1,560 (Figures 2 and 3, this machine, for timing); 0 failures. Figures 2 and 3 and `run_time.md` are in `experiments/figures/`. Abstract metrics and Abstract Dolev times come from Lorenzo's `results_100`. The earlier Concrete results (2026-09-30) are archived in `experiments/archive/csv_before_deadline_fix_2026-10-27/`.
 
 ## How to run
 

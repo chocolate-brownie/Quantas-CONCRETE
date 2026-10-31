@@ -24,12 +24,6 @@ struct LeaderCliArgs {
     bool preflightOnly{false};
 };
 
-/* Purpose: Load the input JSON and verify that it contains at least one experiment. Used by:
- * `main()` at startup so execution stops early when the input is unusable. */
-std::optional<nlohmann::json> parseAndLoadConfig(const std::string& inputPath) {
-    return quantas::loadRuntimeConfig(inputPath);
-}
-
 void printUsage(const char* programName) {
     std::cerr << "Usage: " << programName << " --experiment <experiment_index> <input_json>\n"
               << "       " << programName << " --preflight <input_json>\n";
@@ -94,34 +88,11 @@ std::vector<quantas::interfaceId> correctPeerIds(const nlohmann::json& experimen
     return correct;
 }
 
-/* Readiness-timeout helper: Save the facts known when startup fails, ask any waiting peers to stop,
- * and remove the queues created for this test. */
-void handleReadinessTimeout(
-    bool& allTestsSucceeded, bool& experimentTimedOut, quantas::Coordinator& coordinator,
-    bmqrep::TestReportInfo& testInfo, nlohmann::json& expReport, int totalPeers,
-    const std::chrono::time_point<std::chrono::high_resolution_clock>& testStartTime) {
-
-    allTestsSucceeded = false;
-    experimentTimedOut = true;
-    const auto testEndTime = std::chrono::high_resolution_clock::now();
-    testInfo.duration = testEndTime - testStartTime;
-    testInfo.missingPeers = bmqrep::findMissingPeers(totalPeers, testInfo.readyPeers);
-    testInfo.success = false;
-
-    QUANTAS_LOG_ERROR("coord") << "leader readiness timed out; readyPeers="
-                               << nlohmann::json(testInfo.readyPeers).dump()
-                               << " missingPeers=" << nlohmann::json(testInfo.missingPeers).dump();
-
-    expReport["tests"].push_back(bmqrep::makeTestReport(testInfo));
-    coordinator.broadcastStopBestEffort();
-    coordinator.cleanUp();
-}
-
-void handleControlSendFailure(
-    bool& allTestsSucceeded, bool& experimentTimedOut, quantas::Coordinator& coordinator,
-    bmqrep::TestReportInfo& testInfo, nlohmann::json& expReport,
-    const std::chrono::time_point<std::chrono::high_resolution_clock>& testStartTime) {
-
+/* Failed-test helper: Save the failed test in the report, ask any waiting peers to stop, and remove
+ * the queues or sockets created for this test. */
+void failTest(bool& allTestsSucceeded, bool& experimentTimedOut, quantas::Coordinator& coordinator,
+              bmqrep::TestReportInfo& testInfo, nlohmann::json& expReport,
+              const std::chrono::time_point<std::chrono::high_resolution_clock>& testStartTime) {
     allTestsSucceeded = false;
     experimentTimedOut = true;
     testInfo.duration = std::chrono::high_resolution_clock::now() - testStartTime;
@@ -141,9 +112,9 @@ int main(int argc, char* argv[]) {
     if (!cli)
         return 1;
 
-    /* Load and validate the top-level configuration before acquiring any MQ  resources or starting
-leadermain     * an experiment. */
-    auto config = parseAndLoadConfig(cli->inputPath);
+    /* Load and validate the top-level configuration before acquiring any MQ resources or starting
+     * an experiment. */
+    auto config = quantas::loadRuntimeConfig(cli->inputPath);
     if (!config)
         return 1;
 
@@ -175,13 +146,13 @@ leadermain     * an experiment. */
              * it read its own settings. */
             const auto backend =
                 quantas::BackendFactory::makeBackend(experiment.value("backend", "zeroMq"));
-            backend->loadSettings(experiment, exp.initialPeers); // PERF:
+            backend->loadSettings(experiment, exp.initialPeers);
 
             /* Build the selected topology. The result contains one assignment per peer with its
              * ID, topology type, and neighbour IDs. Then let the backend check, before any worker
              * process starts, that it can run this experiment (the preflight check). */
             auto topology = quantas::buildTopology(exp.topology);
-            backend->preflight(topology.assignments, expIndex); // PERF:
+            backend->preflight(topology.assignments, expIndex);
 
             /* If preflight-only mode is enabled, skip execution after validation and continue with
              * the next configured experiment. */
@@ -206,9 +177,7 @@ leadermain     * an experiment. */
             // Create the coordinator and give it all the information it needs
             coordinatorPtr = backend->makeCoordinator();
             quantas::Coordinator& coordinator = *coordinatorPtr;
-            coordinator.configureExperiment(expIndex, exp.initialPeerType, true, exp.initialPeers,
-                                            quantas::NO_PEER_ID, logFileBase,
-                                            quantas::StopMode::FixedRounds);
+            coordinator.configureExperiment(true, exp.initialPeers, quantas::NO_PEER_ID);
 
             QUANTAS_LOG_INFO("coord")
                 << "leader starting rendezvous for experiment " << expIndex
@@ -249,8 +218,14 @@ leadermain     * an experiment. */
                  * missing, stop the waiting peers, clean the queues, and end this test. */
                 coordinator.waitForAllReady(testInfo.readyPeers, testInfo.readyTimedOut);
                 if (testInfo.readyTimedOut) {
-                    handleReadinessTimeout(allTestsSucceeded, experimentTimedOut, coordinator,
-                                           testInfo, expReport, exp.initialPeers, testStartTime);
+                    testInfo.missingPeers =
+                        bmqrep::findMissingPeers(exp.initialPeers, testInfo.readyPeers);
+                    QUANTAS_LOG_ERROR("coord")
+                        << "leader readiness timed out; readyPeers="
+                        << nlohmann::json(testInfo.readyPeers).dump()
+                        << " missingPeers=" << nlohmann::json(testInfo.missingPeers).dump();
+                    failTest(allTestsSucceeded, experimentTimedOut, coordinator, testInfo,
+                             expReport, testStartTime);
                     break;
                 }
 
@@ -275,8 +250,8 @@ leadermain     * an experiment. */
                     coordinator.broadcastStart();
                 } catch (const std::exception& ex) {
                     QUANTAS_LOG_ERROR("coord") << ex.what();
-                    handleControlSendFailure(allTestsSucceeded, experimentTimedOut, coordinator,
-                                             testInfo, expReport, testStartTime);
+                    failTest(allTestsSucceeded, experimentTimedOut, coordinator, testInfo,
+                             expReport, testStartTime);
                     break;
                 }
 
@@ -289,8 +264,8 @@ leadermain     * an experiment. */
                                             : std::nullopt);
                 } catch (const std::exception& ex) {
                     QUANTAS_LOG_ERROR("coord") << ex.what();
-                    handleControlSendFailure(allTestsSucceeded, experimentTimedOut, coordinator,
-                                             testInfo, expReport, testStartTime);
+                    failTest(allTestsSucceeded, experimentTimedOut, coordinator, testInfo,
+                             expReport, testStartTime);
                     break;
                 }
 

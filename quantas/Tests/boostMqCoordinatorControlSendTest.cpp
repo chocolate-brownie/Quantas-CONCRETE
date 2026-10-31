@@ -14,12 +14,11 @@ constexpr const char* kPeerControlQueue = "peer_0_control";
 
 void removeControlQueue() { message_queue::remove(kPeerControlQueue); }
 
-void createLeader(quantas::BoostMqCoordinator& coordinator, std::size_t timeoutMs) {
+quantas::BoostMqQueueConfig leaderConfig(std::size_t timeoutMs) {
     quantas::BoostMqQueueConfig queueConfig;
     queueConfig.controlQueueCapacity = 1;
     queueConfig.controlSendTimeoutMs = timeoutMs;
-    coordinator.configureExperiment(0, "test", true, 1, quantas::NO_PEER_ID, "cout",
-                                    quantas::StopMode::FixedRounds, queueConfig);
+    return queueConfig;
 }
 
 std::string thrownMessage(const std::function<void()>& operation) {
@@ -40,8 +39,8 @@ quantas::PeerAssignment assignmentForPeerZero() {
 
 void testMissingQueueErrorsNameOperationPeerAndTimeout() {
     removeControlQueue();
-    quantas::BoostMqCoordinator coordinator;
-    createLeader(coordinator, 50);
+    quantas::BoostMqCoordinator coordinator(leaderConfig(50));
+    coordinator.configureExperiment(true, 1, quantas::NO_PEER_ID);
     const std::vector<quantas::PeerAssignment> assignments{assignmentForPeerZero()};
 
     const std::string assignmentError =
@@ -61,8 +60,8 @@ void testFullQueueReturnsAtDeadline() {
     const unsigned int existingMessage = 1;
     queue.send(&existingMessage, sizeof(existingMessage), 0);
 
-    quantas::BoostMqCoordinator coordinator;
-    createLeader(coordinator, 50);
+    quantas::BoostMqCoordinator coordinator(leaderConfig(50));
+    coordinator.configureExperiment(true, 1, quantas::NO_PEER_ID);
     const auto startTime = std::chrono::steady_clock::now();
     const std::string error = thrownMessage([&] { coordinator.broadcastStart(); });
     const auto elapsed = std::chrono::steady_clock::now() - startTime;

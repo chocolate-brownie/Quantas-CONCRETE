@@ -7,10 +7,9 @@
   `searchSliceMs` = `"infinite"`; 1 h safety cap per experiment.
 - BoostMq: CPA 420/420 and Dolev 840/840 experiments, all 100% liveness and 100% safety, 0 failures.
   Median 1.1 s (CPA) and 1.3 s (Dolev); slowest Dolev 661 s (ER k=7, `dolev_network5`, f=3, (3, 3)).
-- ZeroMQ: CPA 420/420 and Dolev 838/840, all 100% liveness and 100% safety, 0 failures.
-  Median 0.47 s (CPA) and 0.59 s (Dolev). Stopped on purpose at 17:31: the last 2 Dolev experiments
-  (random regular k=7, `t3` file, experiments 58-59) are pending; experiment 58 was still searching
-  after 16.5 min (on BoostMq it took 1.3 s). Resume with the same command.
+- ZeroMQ: CPA 420/420 and Dolev 840/840 experiments, all 100% liveness and 100% safety, 0 failures.
+  Median 0.47 s (CPA) and 0.59 s (Dolev); slowest Dolev 1,698 s (edge remover k=7, f=3, (3, 3)).
+  (Run stopped once on purpose and resumed; the interrupted experiment was rerun from the start.)
 
 ## Without time limits, Concrete's run time depends on message order and search cost
 
@@ -23,8 +22,9 @@
   - BoostMq: 1.3 s, 100% liveness and safety.
   - ZeroMQ: 1,698 s (28 min), also 100% liveness and safety (about 9 peers at ~50% CPU each
     during the search).
-  - Second case: random regular, k=7, `both_network7`, f=3, (3, 3): BoostMq 1.3 s; ZeroMQ still
-    searching after 16.5 min when stopped.
+  - Second case: random regular, k=7, `both_network7`, f=3, (3, 3): BoostMq 1.3 s; ZeroMQ first
+    attempt still searching after 16.5 min (stopped), rerun 425 s. Same input, same backend, very
+    different times: the message order changes from run to run.
 - Why: each peer checks the values it received one after another (real value 0, forged value 1).
   With f = 3 < t_s + 1 = 4, the forged value can never reach 4 disjoint paths, so its `k_disjoint`
   search must try every combination before the peer checks value 0. Which value is checked first

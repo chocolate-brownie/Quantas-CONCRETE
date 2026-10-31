@@ -5,7 +5,6 @@
 #include "quantas/Common/Concrete/Runtime/Interfaces/Coordinator.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/NetworkInterface.hpp" // IWYU pragma: keep
-#include <atomic>
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <chrono>
 #include <cstddef>
@@ -32,7 +31,7 @@ class BoostMqCoordinator : public Coordinator {
     bool _isLeader{false};
     size_t _totalPeers{0};
     interfaceId _myId{NO_PEER_ID};
-    std::atomic<bool> _stopSignal{false};
+    bool _stopSignal{false};
 
     /* -------------------- Experiment boostmq queue/config metadata --------------------*/
     BoostMqQueueConfig _queueConfig;
@@ -44,29 +43,19 @@ class BoostMqCoordinator : public Coordinator {
     std::optional<boost::interprocess::message_queue> _myControlInbox;
 
     void notifyPeerEvent(interfaceId id, PeerCompletionEvent event);
+    void broadcastTrigger(unsigned int trigger, const std::string& name);
 
   public:
     /* -------------------- Lifetime --------------------
     One coordinator per leader or peer process, created by its main(). Not copyable: it owns the
     process's control queues. */
-    BoostMqCoordinator() = default;
     explicit BoostMqCoordinator(const BoostMqQueueConfig& queueConfig);
-    ~BoostMqCoordinator() override;
     BoostMqCoordinator(const BoostMqCoordinator&) = delete;
     BoostMqCoordinator& operator=(const BoostMqCoordinator&) = delete;
 
     /* -------------------- Configuration API --------------------
-    Primary entry point used by MQ runtimes to bind this coordinator to one
-    experiment's role and stop policy */
-    void configureExperiment(size_t experimentIndex, const std::string& peerType, bool isLeader,
-                             size_t totalPeers, interfaceId myId, const std::string& logFileBase,
-                             StopMode stopMode, const BoostMqQueueConfig& queueConfig);
-    // Coordinator version: uses the queue settings given to the constructor.
-    void configureExperiment(size_t experimentIndex, const std::string& peerType, bool isLeader,
-                             size_t totalPeers, interfaceId myId, const std::string& logFileBase,
-                             StopMode stopMode) override;
-    // Legacy wrapper kept for compatibility with older call sites.
-    void configureProcess(bool isLeader, size_t totalPeers, interfaceId myId);
+    Bind this coordinator to one test's role; queue settings come from the constructor */
+    void configureExperiment(bool isLeader, size_t totalPeers, interfaceId myId) override;
 
     // -------------------- start-gate handshake protocol --------------------
     void createBarrier();
@@ -86,11 +75,8 @@ class BoostMqCoordinator : public Coordinator {
     Remove MQ queues created for this experiment/process */
     void cleanUp() override;
 
-    /* -------------------- Stop policy query --------------------
-    Placeholder for J9/J12 termination semantics (currently minimal behavior) */
-    bool shouldStop() const;
+    /* -------------------- Stop --------------------*/
     bool pollForStop() override;
-    void requestStop(const std::string& reason = "");
     void broadcastStop();
     void broadcastStopBestEffort() override;
     void waitForStop() override;

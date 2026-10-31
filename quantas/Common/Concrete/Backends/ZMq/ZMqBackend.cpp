@@ -6,21 +6,17 @@
 
 namespace quantas {
 
-/* @brief Load settings from the algo.json config file, Check whether which backend has been chosen
- * and whether there are backend related settings that needs to be configured */
+/* @brief Read the optional "zeroMq" settings, or the defaults when they are not in the JSON. */
 void ZMqBackend::loadSettings(const nlohmann::json& experiment, const int peerCount) {
     _queueConfig = parseZMqConfig(experiment, peerCount);
 }
 
-/* @brief Ipc endpoint (/tmp/quantas_zmq_peer_<id>.ipc) is writable, libzmq broken?, IPC path are
- * unix-socket paths, limited to about 107 chars so whether the path length could be exploited, too
- * many fds(per N peer) could throw EMFILE error, A context allows at most ZMQ_MAX_SOCKETS sockets
- * (1023 by default) Preflight check: context.get(zmq::ctxopt::max_sockets) must exceed 1 + the
- * largest number of neighbours */
+/* @brief Check the topology against ZeroMQ's socket, file-descriptor and ipc-path limits, then
+ * that a test ipc endpoint can be bound. */
 void ZMqBackend::preflight(const std::vector<PeerAssignment>& assignments,
                            const std::size_t experimentIndex) {
-    validateZMqAssignmentPayloads(assignments, _queueConfig, experimentIndex);
-    preflightZMqQueues(_queueConfig, experimentIndex);
+    validateZMqAssignmentPayloads(assignments, experimentIndex);
+    preflightZMqQueues(experimentIndex);
 }
 
 std::unique_ptr<Coordinator> ZMqBackend::makeCoordinator() {

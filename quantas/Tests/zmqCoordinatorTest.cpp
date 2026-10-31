@@ -17,7 +17,7 @@ namespace {
 enum class PeerRole { Normal, Fails, Silent };
 
 void configure(ZMqCoordinator& coord, bool isLeader, std::size_t peers, interfaceId id) {
-    coord.configureExperiment(0, "TestPeer", isLeader, peers, id, "", quantas::StopMode::DoneSignals);
+    coord.configureExperiment(isLeader, peers, id);
 }
 
 // One peer process: every test sends READY, gets its assignment and START, then (brb) reports

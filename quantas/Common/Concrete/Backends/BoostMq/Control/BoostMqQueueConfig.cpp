@@ -1,11 +1,9 @@
 #include "BoostMqQueueConfig.hpp"
 #include "quantas/Common/Logger.hpp"
-#include <algorithm>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/interprocess/exceptions.hpp>
 #include <boost/interprocess/ipc/message_queue.hpp>
-#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -107,27 +105,10 @@ void validateBoostMqAssignmentPayloads(const std::vector<PeerAssignment>& assign
 }
 
 /* Check that the operating system can create queues using the requested capacities and maximum
- * message size. The function first rejects zero or impossible sizes, then creates temporary control
- * and data queues using the real configuration. Temporary queues are removed after success and also
- * when queue creation fails. */
+ * message size (parseBoostMqConfig already rejected zero values). It creates temporary control and
+ * data queues using the real configuration, and removes them after success and also when queue
+ * creation fails. */
 void preflightBoostMqQueues(const BoostMqQueueConfig& queueConfig, std::size_t experimentIndex) {
-    if (queueConfig.controlQueueCapacity == 0 || queueConfig.dataQueueCapacity == 0 ||
-        queueConfig.maxMessageSizeBytes == 0) {
-        throw std::runtime_error(
-            "BoostMQ preflight failed for experiment " + std::to_string(experimentIndex) +
-            ": queue capacities and maximum message size must be greater than 0");
-    }
-
-    const std::size_t largestCapacity =
-        std::max(queueConfig.controlQueueCapacity, queueConfig.dataQueueCapacity);
-
-    if (largestCapacity >
-        std::numeric_limits<std::size_t>::max() / queueConfig.maxMessageSizeBytes) {
-        throw std::runtime_error("BoostMQ preflight failed for experiment " +
-                                 std::to_string(experimentIndex) +
-                                 ": requested queue size exceeds the supported size range");
-    }
-
     const std::string queueSuffix =
         std::to_string(::getpid()) + "_" + std::to_string(experimentIndex);
 

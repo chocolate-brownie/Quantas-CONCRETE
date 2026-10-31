@@ -31,8 +31,6 @@ using PeerAssignment = quantas::PeerAssignment;
 
 // Validate assignment bounds and basic topology invariants.
 void validateAssignment(const PeerAssignment& assignment, int totalPeers) {
-    if (totalPeers <= 0)
-        throw std::runtime_error("error: totalPeers must be > 0");
     if (assignment.id < 0 || assignment.id >= totalPeers)
         throw std::runtime_error("error: assigned peer id " + std::to_string(assignment.id) +
                                  " is outside [0, " + std::to_string(totalPeers - 1) + "]");
@@ -101,8 +99,6 @@ std::string configureExperimentOutput(const std::string& logFileBase, size_t exp
 
 // Perform follower-side start barrier rendezvous.
 void initRendezvous(quantas::Coordinator& coord, int myId) {
-    QUANTAS_LOG_INFO("runner") << "peer " << myId << " configuring process";
-
     QUANTAS_LOG_INFO("runner") << "peer " << myId << " creating inbox";
     coord.openChannels();
 
@@ -272,9 +268,7 @@ int main(int argc, char** argv) {
                 configureExperimentOutput(logFileBase, expIndex, testNumber, processDisambiguator);
 
             /* Tell the control plane which test is running and who this peer is. */
-            coordinator->configureExperiment(expIndex, exp.initialPeerType, false, exp.initialPeers,
-                                             cli->peerId, logFileBase,
-                                             quantas::StopMode::FixedRounds);
+            coordinator->configureExperiment(false, exp.initialPeers, cli->peerId);
             QUANTAS_LOG_INFO("runner") << "peer " << cli->peerId << " output file: " << metricsFile;
             QUANTAS_LOG_INFO("runner") << "peer " << cli->peerId << " starting experiment "
                                        << expIndex << " test " << testNumber;

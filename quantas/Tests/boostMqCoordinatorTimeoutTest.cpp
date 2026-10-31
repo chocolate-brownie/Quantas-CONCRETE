@@ -26,6 +26,7 @@ leader times out waiting for peer 2
 */
 
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.hpp"
+#include <memory>
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <cassert>
 #include <chrono>
@@ -56,12 +57,11 @@ int main() {
     using boost::interprocess::message_queue;
     using namespace std::chrono_literals;
 
-    quantas::BoostMqCoordinator coordinator;
     quantas::BoostMqQueueConfig queueConfig;
     queueConfig.controlQueueCapacity = 3;
-    coordinator.configureExperiment(0, "test", true, 3, quantas::NO_PEER_ID, "cout",
-                                    quantas::StopMode::FixedRounds, queueConfig);
-    coordinator.createBarrier();
+    auto coordinator = std::make_unique<quantas::BoostMqCoordinator>(queueConfig);
+    coordinator->configureExperiment(true, 3, quantas::NO_PEER_ID);
+    coordinator->createBarrier();
 
     std::thread sender([] {
         std::this_thread::sleep_for(10ms);
@@ -74,11 +74,11 @@ int main() {
     });
 
     const auto start = std::chrono::steady_clock::now();
-    const quantas::PeerCompletionResult result = coordinator.waitForAllDone(100ms);
+    const quantas::PeerCompletionResult result = coordinator->waitForAllDone(100ms);
     const auto elapsed = std::chrono::steady_clock::now() - start;
 
     sender.join();
-    coordinator.cleanUp();
+    coordinator->cleanUp();
 
     assert(result.timedOut);
     assert((result.completedPeers == std::vector<quantas::interfaceId>{0, 1}));
@@ -87,9 +87,9 @@ int main() {
     assert(elapsed < 1s);
 
     queueConfig.controlQueueCapacity = 2;
-    coordinator.configureExperiment(0, "test", true, 2, quantas::NO_PEER_ID, "cout",
-                                    quantas::StopMode::FixedRounds, queueConfig);
-    coordinator.createBarrier();
+    coordinator = std::make_unique<quantas::BoostMqCoordinator>(queueConfig);
+    coordinator->configureExperiment(true, 2, quantas::NO_PEER_ID);
+    coordinator->createBarrier();
 
     message_queue doneQueue(boost::interprocess::open_only, "mq_done");
     const quantas::PeerCompletionMessage succeeded{
@@ -99,17 +99,17 @@ int main() {
     doneQueue.send(&succeeded, sizeof(succeeded), 0);
     doneQueue.send(&failed, sizeof(failed), 0);
 
-    const quantas::PeerCompletionResult mixedResult = coordinator.waitForAllDone(100ms);
-    coordinator.cleanUp();
+    const quantas::PeerCompletionResult mixedResult = coordinator->waitForAllDone(100ms);
+    coordinator->cleanUp();
 
     assert(!mixedResult.timedOut);
     assert((mixedResult.completedPeers == std::vector<quantas::interfaceId>{0}));
     assert((mixedResult.failedPeers == std::vector<quantas::interfaceId>{1}));
 
     queueConfig.controlQueueCapacity = 1;
-    coordinator.configureExperiment(0, "test", true, 1, quantas::NO_PEER_ID, "cout",
-                                    quantas::StopMode::FixedRounds, queueConfig);
-    coordinator.createBarrier();
+    coordinator = std::make_unique<quantas::BoostMqCoordinator>(queueConfig);
+    coordinator->configureExperiment(true, 1, quantas::NO_PEER_ID);
+    coordinator->createBarrier();
 
     message_queue malformedQueue(boost::interprocess::open_only, "mq_done");
     const char malformed = 0;
@@ -117,17 +117,17 @@ int main() {
 
     bool malformedRejected = false;
     try {
-        (void)coordinator.waitForAllDone(100ms);
+        (void)coordinator->waitForAllDone(100ms);
     } catch (const std::runtime_error&) {
         malformedRejected = true;
     }
-    coordinator.cleanUp();
+    coordinator->cleanUp();
     assert(malformedRejected);
 
     queueConfig.controlQueueCapacity = 8;
-    coordinator.configureExperiment(0, "CPAPeer", true, 3, quantas::NO_PEER_ID, "cout",
-                                    quantas::StopMode::FixedRounds, queueConfig);
-    coordinator.createBarrier();
+    coordinator = std::make_unique<quantas::BoostMqCoordinator>(queueConfig);
+    coordinator->configureExperiment(true, 3, quantas::NO_PEER_ID);
+    coordinator->createBarrier();
     for (quantas::interfaceId id = 0; id < 3; ++id) {
         const std::string queueName = "peer_" + std::to_string(id) + "_control";
         message_queue(boost::interprocess::create_only, queueName.c_str(), 8,
@@ -148,22 +148,21 @@ int main() {
         sendEvent(id, quantas::PeerCompletionEvent::ProcessDone);
 
     const auto brbResult =
-        coordinator.waitForAllDone(100ms, {0, 2}, protocolStart);
+        coordinator->waitForAllDone(100ms, {0, 2}, protocolStart);
     assert(!brbResult.timedOut);
     assert(brbResult.brbCompletionTimeMs.has_value());
     assert(brbResult.completedPeers.size() == 3);
-    coordinator.cleanUp();
+    coordinator->cleanUp();
 
-    coordinator.configureExperiment(0, "CPAPeer", true, 1, quantas::NO_PEER_ID, "cout",
-                                    quantas::StopMode::FixedRounds, queueConfig);
+    coordinator->configureExperiment(true, 1, quantas::NO_PEER_ID);
     message_queue(boost::interprocess::create_only, "peer_0_control", 1, 64);
     message_queue(boost::interprocess::create_only, "peer_0_data", 1, 64);
     recreateAfterControlRemoval = true;
-    coordinator.cleanUp();
+    coordinator->cleanUp();
     assert(!recreateAfterControlRemoval);
     // Both next-test queues must survive cleanup of the previous test.
     message_queue(boost::interprocess::open_only, "peer_0_control");
     message_queue(boost::interprocess::open_only, "peer_0_data");
-    coordinator.cleanUp();
+    coordinator->cleanUp();
     return 0;
 }

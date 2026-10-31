@@ -40,11 +40,9 @@ int main(int argc, char* argv[]) {
     queueConfig.dataSendTimeoutMs = 25;
     queueConfig.controlSendTimeoutMs = 1000;
 
-    quantas::BoostMqCoordinator coordinator;
+    quantas::BoostMqCoordinator coordinator(queueConfig);
     try {
-        coordinator.configureExperiment(0, "ExamplePeer", false, kTotalPeers, peerId,
-                                        "build/tests/mqDataDeliveryFailure.txt",
-                                        quantas::StopMode::FixedRounds, queueConfig);
+        coordinator.configureExperiment(false, kTotalPeers, peerId);
         coordinator.createInbox();
 
         if (peerId == kBlockedReceiverId) {

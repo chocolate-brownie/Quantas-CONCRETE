@@ -6,7 +6,6 @@
 #include "quantas/Common/Concrete/Runtime/Metrics/TransportMetrics.hpp"
 #include "quantas/Common/Json.hpp"
 #include "quantas/Common/NetworkInterface.hpp"
-#include <atomic>
 #include <boost/interprocess/creation_tags.hpp>
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <optional>
@@ -17,7 +16,6 @@ namespace quantas {
 /* BoostMq transport: algorithm messages travel through each peer's peer_<id>_data queue. */
 class NetworkInterfaceBMq : public NetworkInterface, public MeasuredTransport {
   private:
-    std::atomic<bool> _configured{false};
     std::optional<boost::interprocess::message_queue> _myInbox;
     std::size_t _dataSendTimeoutMs{BoostMqQueueConfig::DEFAULT_DATA_SEND_TIMEOUT_MS};
 
@@ -25,8 +23,6 @@ class NetworkInterfaceBMq : public NetworkInterface, public MeasuredTransport {
 
   public:
     NetworkInterfaceBMq();
-    explicit NetworkInterfaceBMq(interfaceId pubId);
-    NetworkInterfaceBMq(interfaceId pubId, interfaceId internalId);
     ~NetworkInterfaceBMq() override;
 
     void
@@ -36,15 +32,9 @@ class NetworkInterfaceBMq : public NetworkInterface, public MeasuredTransport {
     void unicastTo(nlohmann::json msg, const interfaceId& dest) override;
     void receive() override;
 
-    void clearAll() override;
-
-    void requestStop();
-
     TransportMetrics transportMetrics() const override;
 
     void resetTransportMetrics() override;
-
-    std::size_t getPendingMessageCount() const;
 };
 } // namespace quantas
 

@@ -1,4 +1,4 @@
-// ZMq settings read from the experiment's "zMq" JSON block (the ZMq counterpart of
+// ZMq settings read from the experiment's "zeroMq" JSON block (the ZMq counterpart of
 // Backends/BoostMq/Control/BoostMqQueueConfig.hpp).
 
 #ifndef QUANTAS_COMMON_CONCRETE_BACKENDS_ZMQ_CONTROL_ZMQQUEUECONFIG_HPP
@@ -23,9 +23,9 @@ struct ZMqQueueConfig {
 };
 
 ZMqQueueConfig parseZMqConfig(const nlohmann::json& experiment, int initialPeers);
-void preflightZMqQueues(const ZMqQueueConfig& queueConfig, std::size_t experimentIndex);
+void preflightZMqQueues(std::size_t experimentIndex);
 void validateZMqAssignmentPayloads(const std::vector<PeerAssignment>& assignments,
-                                   const ZMqQueueConfig& queueConfig, std::size_t experimentIndex);
+                                   std::size_t experimentIndex);
 
 } // namespace quantas
 

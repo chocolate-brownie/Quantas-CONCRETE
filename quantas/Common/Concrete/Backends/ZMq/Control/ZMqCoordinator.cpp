@@ -56,13 +56,8 @@ ZMqCoordinator::~ZMqCoordinator() {
 
 // ::::::::::::::::::::::::::::::::::::::: Both side :::::::::::::::::::::::::::::::::::::::::::::
 /* @brief Record who this process is for the coming test. Called before every test, so it also
- * resets the per-test stop flag. The other arguments are not needed by ZeroMQ (BoostMq stores but
- * never reads them). */
-void ZMqCoordinator::configureExperiment(std::size_t /*experimentIndex*/,
-                                         const std::string& /*peerType*/, bool isLeader,
-                                         std::size_t totalPeers, interfaceId myId,
-                                         const std::string& /*logFileBase*/,
-                                         StopMode /*stopMode*/) {
+ * resets the per-test stop flag. */
+void ZMqCoordinator::configureExperiment(bool isLeader, std::size_t totalPeers, interfaceId myId) {
     _isLeader = isLeader;
     _totalPeers = totalPeers;
     _myId = myId;

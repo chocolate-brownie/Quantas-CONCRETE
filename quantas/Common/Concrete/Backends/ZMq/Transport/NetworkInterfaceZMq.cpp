@@ -12,11 +12,6 @@ namespace quantas {
 
 NetworkInterfaceZMq::NetworkInterfaceZMq() : _context(1) {}
 
-NetworkInterfaceZMq::NetworkInterfaceZMq(interfaceId pubId) : NetworkInterfaceZMq(pubId, pubId) {}
-
-NetworkInterfaceZMq::NetworkInterfaceZMq(interfaceId pubId, interfaceId internalId)
-    : NetworkInterface(pubId, internalId) {}
-
 NetworkInterfaceZMq::~NetworkInterfaceZMq() {
     clearAll();
     // libzmq leaves the inbox's ipc file behind; drop "ipc://". The sockets close with the members.
@@ -143,9 +138,6 @@ void NetworkInterfaceZMq::receive() {
         throw std::runtime_error(std::string("receive: ") + ex.what());
     }
 }
-
-// Called by the destructor, so it must not throw.
-void NetworkInterfaceZMq::clearAll() { NetworkInterface::clearAll(); }
 
 TransportMetrics NetworkInterfaceZMq::transportMetrics() const { return _transportMetrics; }
 

@@ -30,8 +30,6 @@ class NetworkInterfaceZMq : public NetworkInterface, public MeasuredTransport {
 
   public:
     NetworkInterfaceZMq();
-    explicit NetworkInterfaceZMq(interfaceId pubId);
-    NetworkInterfaceZMq(interfaceId pubId, interfaceId internalId);
     ~NetworkInterfaceZMq() override;
 
     // Bind the inbox, connect one PUSH socket per neighbour. Called by ZMqBackend::makeTransport
@@ -40,8 +38,7 @@ class NetworkInterfaceZMq : public NetworkInterface, public MeasuredTransport {
 
     // NetworkInterface
     void unicastTo(nlohmann::json msg, const interfaceId& dest) override; // PUSH send
-    void receive() override;  // non-blocking PULL recv, at most kMaxReceivePerCall, into _inStream
-    void clearAll() override; // close sockets, clear _inStream
+    void receive() override; // non-blocking PULL recv, at most kMaxReceivePerCall, into _inStream
 
     // MeasuredTransport
     TransportMetrics transportMetrics() const override;
