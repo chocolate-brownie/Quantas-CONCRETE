@@ -4,7 +4,6 @@
 #include "quantas/Common/Logger.hpp"
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
-#include <cstdio>
 #include <sstream>
 #include <stdexcept>
 
@@ -14,17 +13,17 @@ NetworkInterfaceZMq::NetworkInterfaceZMq() : _context(1) {}
 
 NetworkInterfaceZMq::~NetworkInterfaceZMq() {
     clearAll();
-    // libzmq leaves the inbox's ipc file behind; drop "ipc://". The sockets close with the members.
+    // The sockets close with the members.
     if (_configured)
-        std::remove(endpointFor(_publicId).substr(6).c_str());
+        removeIpcFile(_inboxEndpoint);
 }
 
 void NetworkInterfaceZMq::configure(interfaceId id, std::set<interfaceId> neighbors,
-                                    std::size_t dataSendTimeoutMs, std::size_t dataQueueCapacity) {
+                                    const ZMqQueueConfig& config) {
     _publicId = id;
     _internalId = id;
     _neighbors = neighbors;
-    _dataSendTimeoutMs = dataSendTimeoutMs;
+    _dataSendTimeoutMs = config.dataSendTimeoutMs;
 
     /* Builds a comma seperated string of the peer's neighbour IDs for the log line that follows it
      * in configure, This only feeds the debugging log */
@@ -42,11 +41,12 @@ void NetworkInterfaceZMq::configure(interfaceId id, std::set<interfaceId> neighb
 
     // Bind the inbox, connect one PUSH socket per neighbour. Called by ZMqBackend::makeTransport
     // High-water marks must be set before bind/connect to apply to the connections.
-    const int hwm = static_cast<int>(dataQueueCapacity);
+    const int hwm = static_cast<int>(config.dataQueueCapacity);
 
+    _inboxEndpoint = peerEndpoint(config, id, true);
     _inbox = zmq::socket_t(_context, zmq::socket_type::pull);
     _inbox.set(zmq::sockopt::rcvhwm, hwm);
-    _inbox.bind(endpointFor(id));
+    _inbox.bind(_inboxEndpoint);
 
     for (const auto neighbor : _neighbors) {
         zmq::socket_t push(_context, zmq::socket_type::push);
@@ -59,20 +59,11 @@ void NetworkInterfaceZMq::configure(interfaceId id, std::set<interfaceId> neighb
          * its inbox yet. Retry every 1 ms instead of the 100 ms default (measured: 183 ms → 5 ms). */
         push.set(zmq::sockopt::reconnect_ivl, 1);
         // connect may run before the neighbour binds; ZeroMQ reconnects in the background.
-        push.connect(endpointFor(neighbor));
+        push.connect(peerEndpoint(config, neighbor, false));
         _neighbourOut.emplace(neighbor, std::move(push));
     }
 
     _configured = true;
-}
-
-/**
- * @brief Generates a transport address for processes running on the same machine
- * @param id identifies one peer in the network
- * @return endPoint ipc:// is a ZeroMQ transport for processes that run on the same machine. */
-std::string NetworkInterfaceZMq::endpointFor(interfaceId id) {
-    std::string endPoint = "ipc:///tmp/quantas_zmq_peer_" + std::to_string(id) + ".ipc";
-    return endPoint;
 }
 
 void NetworkInterfaceZMq::unicastTo(nlohmann::json msg, const interfaceId& dest) {

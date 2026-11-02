@@ -1,13 +1,38 @@
 #include "quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.hpp"
-#include "quantas/Common/Concrete/Backends/ZMq/Transport/NetworkInterfaceZMq.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <set>
 #include <stdexcept>
 #include <sys/resource.h>
 #include <unistd.h>
+#include <zmq.hpp>
 
 namespace quantas {
+
+namespace {
+std::string tcpEndpoint(const std::string& host, std::size_t port, bool bind) {
+    return "tcp://" + (bind ? std::string("*") : host) + ":" + std::to_string(port);
+}
+} // namespace
+
+std::string leaderEndpoint(const ZMqQueueConfig& config, bool bind) {
+    if (config.peerHosts.empty())
+        return "ipc:///tmp/quantas_zmq_leader.ipc";
+    return tcpEndpoint(config.leaderHost, config.basePort, bind);
+}
+
+std::string peerEndpoint(const ZMqQueueConfig& config, interfaceId id, bool bind) {
+    if (config.peerHosts.empty())
+        return "ipc:///tmp/quantas_zmq_peer_" + std::to_string(id) + ".ipc";
+    const auto index = static_cast<std::size_t>(id);
+    return tcpEndpoint(config.peerHosts[index % config.peerHosts.size()],
+                       config.basePort + 1 + index, bind);
+}
+
+void removeIpcFile(const std::string& endpoint) {
+    if (endpoint.rfind("ipc://", 0) == 0)
+        std::remove(endpoint.substr(6).c_str()); // drop "ipc://"
+}
 
 ZMqQueueConfig parseZMqConfig(const nlohmann::json& experiment, int initialPeers) {
     ZMqQueueConfig config;
@@ -48,14 +73,45 @@ ZMqQueueConfig parseZMqConfig(const nlohmann::json& experiment, int initialPeers
         config.readyTimeoutMs = value.get<std::size_t>();
     }
 
+    if (zeroMq.contains("basePort")) {
+        const auto& value = zeroMq["basePort"];
+
+        if (!value.is_number_unsigned() || value.get<std::size_t>() == 0)
+            throw std::runtime_error("zeroMq.basePort must be a positive whole number");
+
+        config.basePort = value.get<std::size_t>();
+    }
+
+    if (config.basePort + static_cast<std::size_t>(initialPeers) > 65535)
+        throw std::runtime_error("zeroMq.basePort leaves no port for every peer");
+
+    if (zeroMq.contains("leaderHost") != zeroMq.contains("peerHosts"))
+        throw std::runtime_error("zeroMq.leaderHost and zeroMq.peerHosts must be set together");
+
+    if (zeroMq.contains("leaderHost")) {
+        const auto& leaderHost = zeroMq["leaderHost"];
+        if (!leaderHost.is_string() || leaderHost.get<std::string>().empty())
+            throw std::runtime_error("zeroMq.leaderHost must be a host name");
+
+        const auto& peerHosts = zeroMq["peerHosts"];
+        if (!peerHosts.is_array() || peerHosts.empty())
+            throw std::runtime_error("zeroMq.peerHosts must be a list of host names");
+        for (const auto& host : peerHosts)
+            if (!host.is_string() || host.get<std::string>().empty())
+                throw std::runtime_error("zeroMq.peerHosts must be a list of host names");
+
+        config.leaderHost = leaderHost.get<std::string>();
+        config.peerHosts = peerHosts.get<std::vector<std::string>>();
+    }
+
     return config;
 }
 
 /* @brief Check that no peer ID is assigned twice, that the largest number of neighbours fits the
- * socket and file-descriptor limits (1 + maxDegree < ZMQ_MAX_SOCKETS and RLIMIT_NOFILE), and that
- * the longest ipc path is shorter than 107 characters. */
+ * socket and file-descriptor limits (1 + maxDegree < ZMQ_MAX_SOCKETS and RLIMIT_NOFILE), and, for
+ * ipc://, that the longest path is shorter than 107 characters. */
 void validateZMqAssignmentPayloads(const std::vector<PeerAssignment>& assignments,
-                                   std::size_t experimentIndex) {
+                                   const ZMqQueueConfig& config, std::size_t experimentIndex) {
     const std::string prefix =
         "ZeroMQ preflight failed for experiment " + std::to_string(experimentIndex) + ": ";
 
@@ -88,7 +144,10 @@ void validateZMqAssignmentPayloads(const std::vector<PeerAssignment>& assignment
                                  " file descriptors, but RLIMIT_NOFILE is " +
                                  std::to_string(fdLimit.rlim_cur));
 
-    std::string path = NetworkInterfaceZMq::endpointFor(maxId).substr(6); // drop "ipc://"
+    if (!config.peerHosts.empty())
+        return; // tcp:// has no path limit
+
+    std::string path = peerEndpoint(config, maxId, true).substr(6); // drop "ipc://"
     if (path.size() >= 107)
         throw std::runtime_error("ZeroMQ preflight failed for experiment " +
                                  std::to_string(experimentIndex) + ": ipc path \"" + path +
@@ -97,8 +156,13 @@ void validateZMqAssignmentPayloads(const std::vector<PeerAssignment>& assignment
                                  " characters, but Unix socket paths must be shorter than 107");
 }
 
-// @brief Bind a test PULL socket, to check that /tmp is writable and libzmq works.
-void preflightZMqQueues(std::size_t experimentIndex) {
+/* @brief Bind a test PULL socket, to check that /tmp is writable and libzmq works. Not for tcp://:
+ * a peer that connects to a test socket on the leader's port gets a protocol error and never
+ * reconnects (it cost READY from 2 of 20 peers). The leader's real bind reports a busy port. */
+void preflightZMqQueues(const ZMqQueueConfig& config, std::size_t experimentIndex) {
+    if (!config.peerHosts.empty())
+        return;
+
     // The pid keeps the test endpoint unique, so it never collides with a peer's inbox.
     const std::string endpoint =
         "ipc:///tmp/quantas_zmq_preflight_" + std::to_string(getpid()) + ".ipc";
@@ -112,7 +176,7 @@ void preflightZMqQueues(std::size_t experimentIndex) {
                                  std::to_string(experimentIndex) + ": cannot bind test endpoint " +
                                  endpoint + ": " + error.what());
     }
-    std::remove(endpoint.substr(6).c_str()); // libzmq leaves the ipc file behind; drop "ipc://"
+    removeIpcFile(endpoint);
 }
 
 } // namespace quantas

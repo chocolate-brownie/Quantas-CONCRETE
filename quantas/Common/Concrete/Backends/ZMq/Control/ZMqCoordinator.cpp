@@ -32,7 +32,6 @@
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <chrono>
-#include <cstdio>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -42,16 +41,13 @@
 namespace quantas {
 
 namespace {
-// The leader's ROUTER binds here; every peer's DEALER connects here.
-const std::string kLeaderEndpoint = "ipc:///tmp/quantas_zmq_leader.ipc";
-
 std::string routingIdFor(interfaceId id) { return "peer_" + std::to_string(id); }
 } // namespace
 
 // The leader's ROUTER lives for the whole experiment; libzmq leaves its ipc file behind.
 ZMqCoordinator::~ZMqCoordinator() {
     if (_router)
-        std::remove(kLeaderEndpoint.substr(6).c_str()); // drop "ipc://"
+        removeIpcFile(leaderEndpoint(_queueConfig, true));
 }
 
 // ::::::::::::::::::::::::::::::::::::::: Both side :::::::::::::::::::::::::::::::::::::::::::::
@@ -78,19 +74,19 @@ void ZMqCoordinator::openChannels() {
             /* Keep unsent messages up to 1 s after close: with linger 0 a message still queued at
              * close is dropped (measured: 105 of 200 arrived), with 1000 ms all arrived. */
             _router.set(zmq::sockopt::linger, 1000);
-            _router.bind(kLeaderEndpoint);
+            _router.bind(leaderEndpoint(_queueConfig, true));
         } else if (!_isLeader && !_dealer) {
             // Peer: one DEALER whose routing id ("peer_<id>") lets the leader address this peer.
             _dealer = zmq::socket_t(_context, zmq::socket_type::dealer);
             _dealer.set(zmq::sockopt::routing_id, routingIdFor(_myId));
             _dealer.set(zmq::sockopt::sndtimeo, 1000);
             _dealer.set(zmq::sockopt::linger, 1000); // a last DONE/FAILED still gets out
-            _dealer.connect(kLeaderEndpoint);
+            _dealer.connect(leaderEndpoint(_queueConfig, false));
         }
     } catch (const zmq::error_t& ex) {
         throw std::runtime_error(std::string("ZMqCoordinator::openChannels failed for ") +
                                  (_isLeader ? "leader" : "peer " + std::to_string(_myId)) + " on " +
-                                 kLeaderEndpoint + ": " + ex.what());
+                                 leaderEndpoint(_queueConfig, _isLeader) + ": " + ex.what());
     }
 }
 

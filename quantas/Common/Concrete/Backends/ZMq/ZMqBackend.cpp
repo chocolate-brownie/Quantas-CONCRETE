@@ -12,11 +12,11 @@ void ZMqBackend::loadSettings(const nlohmann::json& experiment, const int peerCo
 }
 
 /* @brief Check the topology against ZeroMQ's socket, file-descriptor and ipc-path limits, then
- * that a test ipc endpoint can be bound. */
+ * that a test endpoint can be bound. */
 void ZMqBackend::preflight(const std::vector<PeerAssignment>& assignments,
                            const std::size_t experimentIndex) {
-    validateZMqAssignmentPayloads(assignments, experimentIndex);
-    preflightZMqQueues(experimentIndex);
+    validateZMqAssignmentPayloads(assignments, _queueConfig, experimentIndex);
+    preflightZMqQueues(_queueConfig, experimentIndex);
 }
 
 std::unique_ptr<Coordinator> ZMqBackend::makeCoordinator() {
@@ -25,8 +25,7 @@ std::unique_ptr<Coordinator> ZMqBackend::makeCoordinator() {
 
 std::unique_ptr<NetworkInterface> ZMqBackend::makeTransport(const PeerAssignment& assignment) {
     auto transport = std::make_unique<NetworkInterfaceZMq>();
-    transport->configure(assignment.id, assignment.neighbors, _queueConfig.dataSendTimeoutMs,
-                         _queueConfig.dataQueueCapacity);
+    transport->configure(assignment.id, assignment.neighbors, _queueConfig);
     return transport;
 }
 
@@ -35,6 +34,11 @@ void ZMqBackend::addReportSettings(nlohmann::json& report) const {
     report["zeroMq"] = {{"dataSendTimeoutMs", _queueConfig.dataSendTimeoutMs},
                         {"dataQueueCapacity", _queueConfig.dataQueueCapacity},
                         {"readyTimeoutMs", _queueConfig.readyTimeoutMs}};
+    if (!_queueConfig.peerHosts.empty()) { // ipc:// reports stay as they were
+        report["zeroMq"]["leaderHost"] = _queueConfig.leaderHost;
+        report["zeroMq"]["peerHosts"] = _queueConfig.peerHosts;
+        report["zeroMq"]["basePort"] = _queueConfig.basePort;
+    }
 }
 
 std::size_t ZMqBackend::dataQueueCapacity() const { return _queueConfig.dataQueueCapacity; }

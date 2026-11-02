@@ -482,19 +482,20 @@ build/tests/mq_queue_config_test.exe: quantas/Tests/boostMqQueueConfigTest.cpp \
 
 build/tests/zmq_queue_config_test.exe: quantas/Tests/zmqQueueConfigTest.cpp \
 		quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.cpp \
-		quantas/Common/Concrete/Backends/ZMq/Transport/NetworkInterfaceZMq.cpp \
 		quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
 
 build/tests/zmq_transport_test.exe: quantas/Tests/zmqTransportTest.cpp \
 		quantas/Common/Concrete/Backends/ZMq/Transport/NetworkInterfaceZMq.cpp \
+		quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.cpp \
 		quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)
 
 build/tests/zmq_coordinator_test.exe: quantas/Tests/zmqCoordinatorTest.cpp \
 		quantas/Common/Concrete/Backends/ZMq/Control/ZMqCoordinator.cpp \
+		quantas/Common/Concrete/Backends/ZMq/Control/ZMqQueueConfig.cpp \
 		quantas/Common/Logger.cpp | check_mq_deps
 	@mkdir -p $(dir $@)
 	@$(CXX) $(CXXFLAGS) $^ -o $@ $(MQ_LDLIBS)

@@ -7,6 +7,7 @@
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"
 #include "quantas/Common/Json.hpp"
 #include <cstddef>
+#include <string>
 #include <vector>
 
 namespace quantas {
@@ -20,12 +21,20 @@ struct ZMqQueueConfig {
     std::size_t dataQueueCapacity{1000};
     // How long the leader waits for every peer's READY in total; same default as BoostMq.
     std::size_t readyTimeoutMs{30000};
+    // Set both to run over tcp://; empty means ipc:// on one machine.
+    std::string leaderHost;
+    std::vector<std::string> peerHosts; // peer i runs on peerHosts[i % size]
+    std::size_t basePort{5555};         // leader: basePort, peer i: basePort + 1 + i
 };
 
 ZMqQueueConfig parseZMqConfig(const nlohmann::json& experiment, int initialPeers);
-void preflightZMqQueues(std::size_t experimentIndex);
+// Addresses: bind = true for the socket owner, false for the sockets that connect to it.
+std::string leaderEndpoint(const ZMqQueueConfig& config, bool bind);
+std::string peerEndpoint(const ZMqQueueConfig& config, interfaceId id, bool bind);
+void removeIpcFile(const std::string& endpoint); // libzmq leaves ipc files behind; tcp: no-op
+void preflightZMqQueues(const ZMqQueueConfig& config, std::size_t experimentIndex);
 void validateZMqAssignmentPayloads(const std::vector<PeerAssignment>& assignments,
-                                   std::size_t experimentIndex);
+                                   const ZMqQueueConfig& config, std::size_t experimentIndex);
 
 } // namespace quantas
 

@@ -8,12 +8,20 @@
 #include <unistd.h>
 
 using quantas::NetworkInterfaceZMq;
+using quantas::ZMqQueueConfig;
 using Clock = std::chrono::steady_clock;
 
 namespace {
 
 bool ipcFileExists(quantas::interfaceId id) {
-    return access(NetworkInterfaceZMq::endpointFor(id).substr(6).c_str(), F_OK) == 0;
+    return access(quantas::peerEndpoint(ZMqQueueConfig{}, id, true).substr(6).c_str(), F_OK) == 0;
+}
+
+ZMqQueueConfig queueConfig(std::size_t sendTimeoutMs, std::size_t capacity) {
+    ZMqQueueConfig config;
+    config.dataSendTimeoutMs = sendTimeoutMs;
+    config.dataQueueCapacity = capacity;
+    return config;
 }
 
 // Receive until at least one packet arrived or the time limit passed.
@@ -32,8 +40,8 @@ int main() {
     // 1. Delivery: content, source and target survive; a non-neighbour is ignored.
     {
         NetworkInterfaceZMq a, b;
-        a.configure(9001, {9002}, 100, 1000);
-        b.configure(9002, {9001}, 100, 1000);
+        a.configure(9001, {9002}, queueConfig(100, 1000));
+        b.configure(9002, {9001}, queueConfig(100, 1000));
         a.unicastTo({{"v", 42}}, 9002);
         a.unicastTo({{"v", 1}}, 7777); // not a neighbour
         assert(receiveWithin(b, std::chrono::milliseconds(1000)));
@@ -51,8 +59,8 @@ int main() {
     {
         const std::size_t capacity = 100;
         NetworkInterfaceZMq a, b;
-        b.configure(9012, {9011}, 10, capacity);
-        a.configure(9011, {9012}, 10, capacity);
+        b.configure(9012, {9011}, queueConfig(10, capacity));
+        a.configure(9011, {9012}, queueConfig(10, capacity));
         std::this_thread::sleep_for(std::chrono::milliseconds(50)); // let the pair connect
         bool threw = false;
         try {
@@ -70,12 +78,12 @@ int main() {
     //    (reconnect_ivl 1 ms; the 100 ms default took ~180 ms).
     {
         NetworkInterfaceZMq a;
-        a.configure(9021, {9022}, 100, 1000);
+        a.configure(9021, {9022}, queueConfig(100, 1000));
         a.unicastTo({{"v", 7}}, 9022);
         const auto sentAt = Clock::now();
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
         NetworkInterfaceZMq b;
-        b.configure(9022, {9021}, 100, 1000);
+        b.configure(9022, {9021}, queueConfig(100, 1000));
         assert(receiveWithin(b, std::chrono::milliseconds(1000)));
         assert(Clock::now() - sentAt < std::chrono::milliseconds(100));
     }
@@ -83,10 +91,24 @@ int main() {
     // 4. The destructor removes the inbox's ipc file.
     {
         auto iface = std::make_unique<NetworkInterfaceZMq>();
-        iface->configure(9031, {}, 10, 1000);
+        iface->configure(9031, {}, queueConfig(10, 1000));
         assert(ipcFileExists(9031));
         iface.reset();
         assert(!ipcFileExists(9031));
+    }
+
+    // 5. tcp://: the same delivery works over the network stack.
+    {
+        ZMqQueueConfig tcp = queueConfig(100, 1000);
+        tcp.leaderHost = "127.0.0.1";
+        tcp.peerHosts = {"127.0.0.1"};
+        tcp.basePort = 15555;
+        NetworkInterfaceZMq a, b;
+        a.configure(1, {2}, tcp);
+        b.configure(2, {1}, tcp);
+        a.unicastTo({{"v", 42}}, 2);
+        assert(receiveWithin(b, std::chrono::milliseconds(1000)));
+        assert(b.popInStream().getMessage()["v"] == 42);
     }
 
     return 0;
