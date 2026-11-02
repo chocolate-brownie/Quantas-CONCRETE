@@ -21,6 +21,7 @@
       },
       "tests": 1,
       "rounds": 1,
+      "windowMs": 500,
       "doneTimeoutMs": 1000
     }
   ]

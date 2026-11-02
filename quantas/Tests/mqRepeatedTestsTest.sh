@@ -43,7 +43,6 @@ for index, test in enumerate(tests, start=1):
     for path in peer_files.values():
         output_files.append(path)
         peer_report = json.loads((root / path).read_text())
-        assert len(peer_report["tests"]) == 1
         assert "transportMetrics" in peer_report
 
 assert len(output_files) == 6

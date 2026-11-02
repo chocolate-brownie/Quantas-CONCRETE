@@ -42,8 +42,8 @@ for peer_id, path in enumerate(peer_paths):
     assert output["assignedNeighbors"] == [1 - peer_id]
     assert output["parameterMarker"] == "contract-marker"
     assert output["initParametersCalls"] == 1
-    assert output["performComputationCalls"] == 3
-    assert output["endOfRoundCalls"] == 3
+    assert output["performComputationCalls"] > 0  # time-based run: the count follows windowMs
+    assert output["endOfRoundCalls"] == 0  # the Concrete run loop has no rounds
     assert output["endOfExperimentCalls"] == 1
 PY
 
