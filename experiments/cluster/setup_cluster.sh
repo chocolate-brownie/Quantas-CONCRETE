@@ -30,7 +30,7 @@ int main() {
     return 0;
 }
 EOF
-if g++ -std=c++17 "$test_dir/check.cpp" -o "$test_dir/check" -lboost_serialization -lzmq -lrt &&
+if g++ -std=c++17 -I. "$test_dir/check.cpp" -o "$test_dir/check" -lboost_serialization -lzmq -lrt &&
 	"$test_dir/check"; then
 	echo "ok: C++17, Boost and ZeroMQ (with zmq.hpp) compile and run"
 else

@@ -39,6 +39,7 @@ READY_TIMEOUT_MS = 60000  # starting peers over oarsh takes longer than on one m
 EXPERIMENT_TIMEOUT_S = 200  # readyTimeoutMs + doneTimeoutMs, plus margin
 PEER_EXIT_TIMEOUT_S = 15
 MAX_CONSECUTIVE_FAILURES = 5  # e.g. blocked ports: stop instead of waiting on every experiment
+JOB_KEY = Path.home() / ".quantas_job_key"  # from oarsub -k -e; plain oarsh fails between nodes here
 INPUTS = Path(__file__).resolve().parent / "inputs"
 CAMPAIGN_ROOT = REPO_ROOT / "Results/run_experiments/cluster_n20"
 CSV_FOLDERS = {"cpa": "CPA", "dolev": "Dolev"}
@@ -55,6 +56,8 @@ def cluster_nodes():
     leaders = [node for node in nodes if node.split(".")[0] == this_node]
     if len(nodes) != 3 or len(leaders) != 1:
         raise SystemExit(f"Expected 3 nodes including {this_node}, got {nodes}")
+    if not JOB_KEY.is_file():
+        raise SystemExit(f"Missing {JOB_KEY}: submit the job with oarsub -k -e {JOB_KEY}")
     return leaders[0], [node for node in nodes if node != leaders[0]]
 
 
@@ -78,16 +81,19 @@ def start_peers(node_index, node, directory, peer_exe, peer_ids, local):
     )
     script = (f"cd {shlex.quote(str(directory))} && hostname > node_{node_index}.host && "
               f"{{ {peers} wait; }} > node_{node_index}.log 2>&1")
-    command = ["bash", "-c", script] if local else ["oarsh", node, f"bash -c {shlex.quote(script)}"]
-    return subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL)
+    command = (["bash", "-c", script] if local
+               else ["oarsh", "-i", str(JOB_KEY), node, f"bash -c {shlex.quote(script)}"])
+    with (directory / f"node_{node_index}.err").open("w", encoding="utf-8") as errors:
+        return subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=errors)
 
 
 def stop_peers(node, peer_exe, local):
     """Peers block forever if the leader is gone, so kill any left on the node."""
     pattern = shlex.quote(str(peer_exe))
     command = f"pkill -KILL -f {pattern}"
-    subprocess.run(["bash", "-c", command] if local else ["oarsh", node, command],
+    subprocess.run(["bash", "-c", command] if local
+                   else ["oarsh", "-i", str(JOB_KEY), node, command],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 
@@ -167,6 +173,7 @@ def main():
         original = read_json(path)
         campaign = CAMPAIGN_ROOT / f"{algorithm}_{family}_k{k}"
         csv_path = REPO_ROOT / "experiments" / CSV_FOLDERS[algorithm] / "csv" / f"cluster_{family}_k{k}.csv"
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
         for index in range(len(original["experiments"]))[:args.limit]:
             directory = campaign / BACKEND / path.stem / f"experiment_{index}"
             if (directory / "result.json").is_file():
