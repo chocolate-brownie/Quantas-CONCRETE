@@ -19,11 +19,14 @@ Host cluster.lip6.fr
 ```
 Then:
 ```sh
-rsync -av --exclude .git --exclude .venv --exclude Results --exclude build \
-    --exclude quantas_mtrc-main --exclude '*.exe' ./ cluster.lip6.fr:Quantas/
+git ls-files Makefile quantas experiments/campaign_runner.py experiments/cluster | grep -v /topologies/ | \
+    rsync -ltv --files-from=- ./ cluster.lip6.fr:Quantas/
 ```
-The cluster's `/home` is shared by all nodes, so one copy is enough. `job_passive.sh` expects
-`~/Quantas`.
+This copies only what the run needs, about 5 MB. Don't use `rsync -a`: it copies the laptop's
+permissions, which removes the setgid bit from the new folders. Files in them then count against the
+group `NPA`, whose quota is 1 block and 1 file, and writes fail with "Disk quota exceeded" (check with
+`quota -g`). The cluster's `/home` is shared by all nodes, so one copy is enough. `job_passive.sh`
+expects `~/Quantas`.
 
 ## 2. Check the tools (1 node)
 ```sh
