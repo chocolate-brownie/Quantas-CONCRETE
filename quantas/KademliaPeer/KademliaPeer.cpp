@@ -16,7 +16,6 @@ You should have received a copy of the GNU General Public License along with QUA
 #include <cstdint>
 
 #include "quantas/Common/Abstract/NetworkInterfaceAbstract.hpp"
-#include "quantas/Common/Concrete/Backends/TCP/NetworkInterfaceConcrete.hpp"
 #include "quantas/Common/LogWriter.hpp"
 #include "quantas/Common/RandomUtil.hpp"
 #include "quantas/Common/RoundManager.hpp"
@@ -33,12 +32,6 @@ static bool registerKademliaAbstract = []() {
     return PeerRegistry::registerPeerType(
         "KademliaPeer",
         [](interfaceId pubId) { return new KademliaPeer(new NetworkInterfaceAbstract(pubId)); });
-}();
-
-static bool registerKademliaConcrete = []() {
-    return PeerRegistry::registerPeerType(
-        "KademliaPeerConcrete",
-        [](interfaceId /*pubId*/) { return new KademliaPeer(new NetworkInterfaceConcrete()); });
 }();
 
 int KademliaPeer::s_currentTransactionId = 1;

@@ -10,7 +10,15 @@
 
 \subsection{Backend interface}
 % Abstract Factory + Strategy: Backend creates a matching Coordinator and transport.
-\todo{Backend interface; figure: architecture diagram}
+\todo{Backend interface}
+
+\begin{figure*}
+  \centering
+  \input{figures/concrete-uml}
+  \caption{UML class diagram of Concrete QUANTAS. Hollow triangles show inheritance, filled diamonds composition, and dashed arrows dependencies. Grey boxes are programs, not classes.}
+  \Description{Class diagram: the LeaderMain and PeerMain programs use the Backend and Coordinator interfaces; each backend has its own Backend, Coordinator and NetworkInterface class; a Peer owns a NetworkInterface, which owns Packets.}
+  \label{fig:concrete-uml}
+\end{figure*}
 
 \subsection{Control protocol}
 % READY, assignment, START, DELIVERED, DONE/FAILED, STOP (+ RELEASE for ZeroMQ).

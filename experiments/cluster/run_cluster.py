@@ -126,7 +126,7 @@ def run_experiment(path, original, index, leader, peer_nodes, binaries, director
         for node_index, node in enumerate(peer_nodes)
     ]
     try:
-        code = leader_process.wait(timeout=EXPERIMENT_TIMEOUT_S)
+        code = leader_process.wait(timeout=EXPERIMENT_TIMEOUT_S * experiment["tests"])
         if code:
             error = f"Leader exited with code {code}"
         for shell in peer_shells:
@@ -159,6 +159,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--limit", type=int, help="experiments per input file")
     parser.add_argument("--local", action="store_true", help="run here over 127.0.0.1")
+    parser.add_argument("--repeat", type=int, help="run each experiment this many times")
     args = parser.parse_args()
 
     leader, peer_nodes = ("127.0.0.1", ["127.0.0.1"] * 2) if args.local else cluster_nodes()
@@ -171,8 +172,13 @@ def main():
     for path in paths:
         algorithm, family, k, _ = INPUT_NAME.fullmatch(path.name).groups()
         original = read_json(path)
-        campaign = CAMPAIGN_ROOT / f"{algorithm}_{family}_k{k}"
-        csv_path = REPO_ROOT / "experiments" / CSV_FOLDERS[algorithm] / "csv" / f"cluster_{family}_k{k}.csv"
+        tag = ""
+        if args.repeat:  # separate results and CSVs, so single runs are never mixed in
+            tag = f"_repeat{args.repeat}"
+            for experiment in original["experiments"]:
+                experiment["tests"] = args.repeat
+        campaign = CAMPAIGN_ROOT.with_name(CAMPAIGN_ROOT.name + tag) / f"{algorithm}_{family}_k{k}"
+        csv_path = REPO_ROOT / "experiments" / CSV_FOLDERS[algorithm] / "csv" / f"cluster{tag}_{family}_k{k}.csv"
         csv_path.parent.mkdir(parents=True, exist_ok=True)
         for index in range(len(original["experiments"]))[:args.limit]:
             directory = campaign / BACKEND / path.stem / f"experiment_{index}"

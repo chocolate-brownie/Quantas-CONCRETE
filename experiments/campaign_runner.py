@@ -275,8 +275,9 @@ def export_csv(campaign_dir, backend, csv_path):
     rows = []
     for path in (campaign_dir / backend).glob("*/experiment_*/result.json"):
         result = read_json(path)
-        # Wall-clock time of the whole experiment process (tests = 1, so one row per experiment).
-        rows.extend({**row, "run_time_s": result["duration_seconds"]} for row in result["rows"])
+        # Wall-clock time of the whole experiment process, shared equally between its repetitions.
+        rows.extend({**row, "run_time_s": result["duration_seconds"] / len(result["rows"])}
+                    for row in result["rows"])
     rows.sort(key=lambda row: (
         row["byzantine_count"], row["input_file"], row["experiment_index"], row["repetition"]
     ))
@@ -424,11 +425,15 @@ def execute_experiment(backend, path, original, index, base, directory, binaries
 
 
 def run(backend, algorithm, family, k, max_t, limit_experiments, campaign_dir, csv_path, abstract_root,
-        pairs=None, within_bounds=False):
+        pairs=None, within_bounds=False, repeat=None):
     paths = input_paths(algorithm, family, k, max_t)
     root = abstract_root if backend == "abstract" else REPO_ROOT
     identity = source_identity(root)
     originals = {path: read_json(path) for path in paths}
+    if repeat:
+        for original in originals.values():
+            for experiment in original["experiments"]:
+                experiment["tests"] = repeat
     jobs = []
     for path, original in originals.items():
         peer = ALGORITHMS[algorithm]
@@ -561,12 +566,21 @@ def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover
         help="Correctness check: only f <= min(ts, tl), with no time limits (Concrete only; "
              f"each experiment is killed after {WITHIN_BOUNDS_CAP_S} s)",
     )
+    parser.add_argument(
+        "--repeat",
+        type=positive_int,
+        help="Run each experiment this many times (kept apart from the single-run results)",
+    )
     args = parser.parse_args(argv)
     if args.within_bounds and backend == "abstract":
         parser.error("--within-bounds is for the Concrete backends")
+    if args.within_bounds and args.repeat:
+        parser.error("--within-bounds and --repeat cannot be combined")
     csv_path = Path(csv_path or Path(script_file).resolve().with_suffix(".csv"))
     # Kept apart from the normal campaign: different settings, so separate checkpoints.
     runs = "topologies_100_within_bounds" if args.within_bounds else "topologies_100"
+    if args.repeat:
+        runs = f"topologies_100_repeat{args.repeat}"
     campaign_dir = REPO_ROOT / "Results/run_experiments" / runs / algorithm / family / f"k{k}"
     lock_path = REPO_ROOT / "Results/.edge-remover-runner.lock"
     lock_path.parent.mkdir(exist_ok=True)
@@ -593,6 +607,7 @@ def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover
                 args.abstract_root.resolve(),
                 args.pair,
                 args.within_bounds,
+                args.repeat,
             )
         except KeyboardInterrupt:
             print(

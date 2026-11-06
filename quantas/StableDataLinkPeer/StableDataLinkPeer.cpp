@@ -17,12 +17,6 @@ static bool registerStableDataLink = []() {
 		[](interfaceId pubId) { return new StableDataLinkPeer(new NetworkInterfaceAbstract(pubId)); });
 }();
 
-static bool registerStableDataLinkConcrete = []() {
-	return PeerRegistry::registerPeerType(
-		"StableDataLinkPeerConcrete",
-		[](interfaceId) { return new StableDataLinkPeer(new NetworkInterfaceConcrete()); });
-}();
-
 StableDataLinkPeer::~StableDataLinkPeer() = default;
 
 StableDataLinkPeer::StableDataLinkPeer(const StableDataLinkPeer& rhs) : Peer(rhs) {}

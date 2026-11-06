@@ -18,12 +18,6 @@ namespace quantas {
 		return true;
 	}();
 
-	static bool registerAltBitConcrete = [](){
-		PeerRegistry::registerPeerType("AltBitPeerConcrete",
-			[](interfaceId pubId){ return new AltBitPeer(new NetworkInterfaceConcrete()); });
-		return true;
-	}();
-
 	AltBitPeer::~AltBitPeer() {
 
 	}

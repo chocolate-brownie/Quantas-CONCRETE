@@ -55,10 +55,7 @@ COMMON_SRCS := $(wildcard quantas/Common/*.cpp)
 ABSTRACT_SRCS := $(COMMON_SRCS) \
 	quantas/Common/Abstract/abstractSimulation.cpp \
 	quantas/Common/Abstract/Channel.cpp \
-	quantas/Common/Abstract/Network.cpp \
-	quantas/Common/Concrete/Backends/TCP/NetworkInterfaceConcrete.cpp \
-	quantas/Common/Concrete/Backends/TCP/ProcessCoordinator.cpp \
-	quantas/Common/Concrete/Backends/TCP/ipUtil.cpp
+	quantas/Common/Abstract/Network.cpp
 MQ_SRCS := $(COMMON_SRCS) \
 	quantas/Common/Concrete/Runtime/Engine/PeerMain.cpp \
 	quantas/Common/Concrete/Runtime/Engine/RunLoop.cpp \
@@ -73,10 +70,7 @@ MQ_SRCS := $(COMMON_SRCS) \
 	quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.cpp \
 	quantas/Common/Concrete/Runtime/Topology/TopologyPlanner.cpp \
 	quantas/Common/Concrete/Backends/BoostMq/Transport/NetworkInterfaceBMq.cpp \
-	quantas/Common/Abstract/Channel.cpp \
-	quantas/Common/Concrete/Backends/TCP/NetworkInterfaceConcrete.cpp \
-	quantas/Common/Concrete/Backends/TCP/ProcessCoordinator.cpp \
-	quantas/Common/Concrete/Backends/TCP/ipUtil.cpp
+	quantas/Common/Abstract/Channel.cpp
 MQ_LEADER_SRCS := $(COMMON_SRCS) \
 	quantas/Common/Concrete/Runtime/Engine/LeaderMain.cpp \
 	quantas/Common/Concrete/Runtime/Logging/ReportWriter.cpp \

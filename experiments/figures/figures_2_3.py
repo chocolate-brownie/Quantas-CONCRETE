@@ -70,8 +70,8 @@ def read_csvs(prefix):
     frames = [pd.read_csv(path).assign(alg=alg)
               for alg, directory in CSV.items()
               for path in sorted(directory.glob(f"{prefix}_*_k{K}.csv"))
-              # The --within-bounds correctness check (no time limits) is a different experiment.
-              if "_within_bounds_" not in path.name]
+              # The --within-bounds check (no time limits) and --repeat runs are separate experiments.
+              if "_within_bounds_" not in path.name and "_repeat" not in path.name]
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 

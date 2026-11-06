@@ -24,7 +24,6 @@ along with QUANTAS. If not, see <https://www.gnu.org/licenses/>.
 #include "LogWriter.hpp"
 #include "NetworkInterface.hpp"
 #include "RoundManager.hpp"
-#include "quantas/Common/Concrete/Backends/TCP/NetworkInterfaceConcrete.hpp" // IWYU pragma: keep
 #include <chrono>
 #include <functional>
 #include <iostream>
