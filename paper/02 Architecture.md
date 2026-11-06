@@ -12,20 +12,22 @@ The execution model is what changes. Each peer is its own process, and a separat
 
 ## One architecture for both
 
-Figure 1 shows QUANTAS as a whole. The algorithms, `Peer`, `NetworkInterface` and `Packet` are shared. Abstract QUANTAS adds a single program in which `Simulation` runs the tests in rounds, `Network` holds the peers, and `NetworkInterfaceAbstract` connects them through `Channel` objects that model delay, loss, duplication and reordering. Concrete QUANTAS replaces this with a leader process, one process per peer, the algorithm adapters and the backend interfaces described next.
+Figure 1 extends the architecture of the original QUANTAS paper [@quantas]. The original components keep their names, with the class that implements each one in parentheses. The user still provides the Configuration, the Concrete Node (the algorithm) and the User-Defined Message, and the Abstract Node, the Node Network Interface and the Packet are shared by both versions. Abstract QUANTAS keeps its Simulation and Network, which run every node in one process, in rounds. Its Node Network Interface becomes one implementation among several: the original one moves messages through simulated channels with delays.
+
+Concrete QUANTAS adds the parts shown in orange. A Leader Process reads the same Configuration, and each node runs in its own Peer Process. A Backend builds a Coordinator for control messages and a Node Network Interface for data, with one implementation each for BoostMq and ZeroMQ. The user may add an Algorithm Adapter next to the Concrete Node.
+
+![[figures/quantas-uml.pdf#height=450]]
+*Figure 1: The QUANTAS architecture of [@quantas], extended with Concrete QUANTAS. Class names are in parentheses. Blue components exist only in Abstract QUANTAS, orange ones are added by Concrete QUANTAS, and white ones are shared. Filled diamonds show composition, the hollow diamond aggregation, hollow triangles inheritance (dashed: implements an interface), solid arrows use, and dashed arrows dependencies; both processes use the Backend and the Coordinator through the shared dashed line. Boxes with rounded corners are processes.*
 
 ## Backend interface
 
-The runtime talks to a backend through three interfaces, shown in Figure 1:
+The runtime talks to a backend through three interfaces:
 
 - `Backend` reads the backend's settings, checks before a run that the experiment can execute, and creates the two objects below. `BackendFactory` selects it from the `backend` field of the input.
 - `Coordinator` is the control plane: the messages between the leader and the peers that run each test.
 - `NetworkInterface` is the data plane: the transport that carries the algorithm's messages. Each backend's transport also implements `MeasuredTransport`, which reports the messages sent, received and dropped.
 
 Because `Backend` creates a matching coordinator and transport, the leader, the peer loop and the algorithms depend only on these interfaces. Adding a backend means implementing them and adding one line to the factory.
-
-![[figures/quantas-uml.pdf#height=450]]
-*Figure 1: UML class diagram of QUANTAS. Blue classes belong to Abstract QUANTAS, orange ones to Concrete QUANTAS, and white ones are shared. Hollow triangles show inheritance (dashed: `CPAPeerAdapter` provides an `AlgorithmAdapter`), filled diamonds composition, the hollow diamond aggregation, and dashed arrows dependencies. Boxes with rounded corners are programs, not classes.*
 
 ## Control protocol
 
