@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-"""Run the ZeroMQ campaign on 3 cluster nodes: this node runs the leader, 2 nodes run the peers.
+"""Run a ZeroMQ campaign over tcp:// on cluster nodes: this node runs the leader, every other node of
+the OAR job runs peers.
 
-Peers alternate between the 2 nodes (ZMqQueueConfig: peerHosts[i % size]). Run it from inside an OAR
-job, from a folder all nodes share. Finished experiments are skipped, so it can resume.
+Peer i runs on peer node i % (number of peer nodes) (ZMqQueueConfig: peerHosts[i % size]). Run it from
+inside an OAR job, from a folder all nodes share. Finished experiments are skipped, so it can resume.
 
-    run_cluster.py               # every experiment
+    run_cluster.py                                    # the n = 20 check inputs in inputs/
+    run_cluster.py --inputs quantas_mtrc-main/Quantas/quantas/topologies_100 \
+        --algorithm cpa --k 7 --pair 1,5 --repeat 10  # Lorenzo's n = 100 inputs
     run_cluster.py --limit 2     # the first 2 experiments of each input, for a test
     run_cluster.py --local       # on this machine over 127.0.0.1, without OAR or oarsh
 
-Raw data: Results/run_experiments/cluster_n20/. CSVs: experiments/{CPA,Dolev}/csv/cluster_*.csv.
+Raw data: Results/run_experiments/cluster_<inputs>_<P>nodes[_repeatN]/.
+CSVs: experiments/{CPA,Dolev}/csv/cluster_n<n>_<P>nodes[_repeatN]_<family>_k<k>.csv (P = peer nodes).
+The first run (n = 20, 2 peer nodes, before these options) wrote cluster_n20/ and cluster_<family>_k3.csv.
 """
 
 import argparse
@@ -25,6 +30,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from campaign_runner import (  # noqa: E402
     REPO_ROOT,
+    threshold_pair,
     collect_rows,
     effective_input,
     experiment_metadata,
@@ -41,29 +47,29 @@ PEER_EXIT_TIMEOUT_S = 15
 MAX_CONSECUTIVE_FAILURES = 5  # e.g. blocked ports: stop instead of waiting on every experiment
 JOB_KEY = Path.home() / ".quantas_job_key"  # from oarsub -k -e; plain oarsh fails between nodes here
 INPUTS = Path(__file__).resolve().parent / "inputs"
-CAMPAIGN_ROOT = REPO_ROOT / "Results/run_experiments/cluster_n20"
+RUNS = REPO_ROOT / "Results/run_experiments"
 CSV_FOLDERS = {"cpa": "CPA", "dolev": "Dolev"}
-INPUT_NAME = re.compile(r"(cpa|dolev)_(\w+)_n\d+_k(\d+)_t(\d+)\.json")
+INPUT_NAME = re.compile(r"(cpa|dolev)_(\w+)_n(\d+)_k(\d+)_t(\d+)\.json")
 
 
 def cluster_nodes():
-    """Return (leader, [2 peer nodes]) from the OAR node list; this node is the leader."""
+    """Return (leader, [peer nodes]) from the OAR node list; this node is the leader."""
     node_file = os.environ.get("OAR_NODE_FILE")
     if not node_file:
         raise SystemExit("OAR_NODE_FILE is not set: run inside an OAR job, or use --local")
     nodes = sorted(set(Path(node_file).read_text(encoding="utf-8").split()))
     this_node = socket.gethostname().split(".")[0]
     leaders = [node for node in nodes if node.split(".")[0] == this_node]
-    if len(nodes) != 3 or len(leaders) != 1:
-        raise SystemExit(f"Expected 3 nodes including {this_node}, got {nodes}")
+    if len(nodes) < 2 or len(leaders) != 1:
+        raise SystemExit(f"Expected at least 2 nodes including {this_node}, got {nodes}")
     if not JOB_KEY.is_file():
         raise SystemExit(f"Missing {JOB_KEY}: submit the job with oarsub -k -e {JOB_KEY}")
     return leaders[0], [node for node in nodes if node != leaders[0]]
 
 
-def build(algorithm, original):
+def build(algorithm, original, campaign_root):
     """Build one algorithm's binaries; a peer binary only contains its own algorithm."""
-    directory = CAMPAIGN_ROOT / f"bin_{algorithm}"
+    directory = campaign_root / f"bin_{algorithm}"
     input_path = directory / "build_input.json"
     write_json(input_path, effective_input(original, 0, BACKEND))  # has the Concrete algorithm path
     with (directory / "build.log").open("w", encoding="utf-8") as log:
@@ -99,7 +105,7 @@ def stop_peers(node, peer_exe, local):
 
 def run_experiment(path, original, index, leader, peer_nodes, binaries, directory, local):
     """Run one experiment; return True when every test succeeded."""
-    algorithm, family, k, _ = INPUT_NAME.fullmatch(path.name).groups()
+    algorithm, family, _, k, _ = INPUT_NAME.fullmatch(path.name).groups()
     config = effective_input(original, index, BACKEND)
     experiment = config["experiments"][0]
     experiment[BACKEND].update({
@@ -160,32 +166,52 @@ def main():
     parser.add_argument("--limit", type=int, help="experiments per input file")
     parser.add_argument("--local", action="store_true", help="run here over 127.0.0.1")
     parser.add_argument("--repeat", type=int, help="run each experiment this many times")
+    parser.add_argument("--run", type=int,
+                        help="number of this run of the whole campaign (separate results and CSVs)")
+    parser.add_argument("--inputs", type=Path, default=INPUTS, help="folder of input files")
+    parser.add_argument("--algorithm", choices=("cpa", "dolev"), action="append",
+                        help="only this algorithm (repeatable; default: all)")
+    parser.add_argument("--k", type=int, action="append", help="only this k (repeatable)")
+    parser.add_argument("--pair", type=threshold_pair, action="append",
+                        help="only experiments with this TS,TL pair (repeatable, e.g. --pair 1,5)")
     args = parser.parse_args()
 
     leader, peer_nodes = ("127.0.0.1", ["127.0.0.1"] * 2) if args.local else cluster_nodes()
-    paths = sorted(INPUTS.glob("*.json"))
+    inputs = args.inputs if args.inputs.is_absolute() else REPO_ROOT / args.inputs
+    paths = []
+    for path in sorted(inputs.glob("*.json")):
+        name = INPUT_NAME.fullmatch(path.name)  # skips other algorithms, e.g. pk_cpa_*
+        if name and (not args.algorithm or name[1] in args.algorithm) \
+                and (not args.k or int(name[4]) in args.k):
+            paths.append(path)
     if not paths:
-        raise SystemExit(f"No inputs in {INPUTS}; see README.md")
+        raise SystemExit(f"No matching inputs in {inputs}; see README.md")
+    tag = f"_repeat{args.repeat}" if args.repeat else ""
+    if args.run:
+        tag += f"_run{args.run:02d}"
+    campaign_root = RUNS / f"cluster_{inputs.name}_{len(peer_nodes)}nodes{tag}"
 
     binaries = {}
     failures = 0
     for path in paths:
-        algorithm, family, k, _ = INPUT_NAME.fullmatch(path.name).groups()
+        algorithm, family, n, k, _ = INPUT_NAME.fullmatch(path.name).groups()
         original = read_json(path)
-        tag = ""
         if args.repeat:  # separate results and CSVs, so single runs are never mixed in
-            tag = f"_repeat{args.repeat}"
             for experiment in original["experiments"]:
                 experiment["tests"] = args.repeat
-        campaign = CAMPAIGN_ROOT.with_name(CAMPAIGN_ROOT.name + tag) / f"{algorithm}_{family}_k{k}"
-        csv_path = REPO_ROOT / "experiments" / CSV_FOLDERS[algorithm] / "csv" / f"cluster{tag}_{family}_k{k}.csv"
+        campaign = campaign_root / f"{algorithm}_{family}_k{k}"
+        csv_name = f"cluster_n{n}_{len(peer_nodes)}nodes{tag}_{family}_k{k}.csv"
+        csv_path = REPO_ROOT / "experiments" / CSV_FOLDERS[algorithm] / "csv" / csv_name
         csv_path.parent.mkdir(parents=True, exist_ok=True)
-        for index in range(len(original["experiments"]))[:args.limit]:
+        indexes = [index for index, experiment in enumerate(original["experiments"])
+                   if not args.pair or (experiment["parameters"]["ts"],
+                                        experiment["parameters"]["tl"]) in args.pair]
+        for index in indexes[:args.limit]:
             directory = campaign / BACKEND / path.stem / f"experiment_{index}"
             if (directory / "result.json").is_file():
                 continue
             if algorithm not in binaries:
-                binaries[algorithm] = build(algorithm, original)
+                binaries[algorithm] = build(algorithm, original, campaign_root)
             print(f"{path.name}, experiment {index + 1}", flush=True)
             complete = run_experiment(path, original, index, leader, peer_nodes,
                                       binaries[algorithm], directory, args.local)

@@ -116,8 +116,10 @@ MQ_DEP_CHECK := /tmp/quantas_mq_dep_check
 RELEASE_ABSTRACT_OBJS := $(addprefix build/release/,$(ABSTRACT_SRCS:.cpp=.o) $(ALGS:.cpp=.o))
 DEBUG_ABSTRACT_OBJS := $(addprefix build/debug/,$(ABSTRACT_SRCS:.cpp=.o) $(ALGS:.cpp=.o))
 CLANG_ABSTRACT_OBJS := $(addprefix build/clang/,$(ABSTRACT_SRCS:.cpp=.o) $(ALGS:.cpp=.o))
-RELEASE_MQ_OBJS := $(addprefix build/release/,$(MQ_SRCS:.cpp=.o) $(ALGS:.cpp=.o))
-DEBUG_MQ_OBJS := $(addprefix build/debug/,$(MQ_SRCS:.cpp=.o) $(ALGS:.cpp=.o))
+# Concrete adapter of each listed algorithm, if it has one: Adapters/<Name>Adapter.cpp for <Name>.cpp.
+MQ_ADAPTERS := $(wildcard $(patsubst %,quantas/Common/Concrete/Adapters/%Adapter.cpp,$(basename $(notdir $(ALGS)))))
+RELEASE_MQ_OBJS := $(addprefix build/release/,$(MQ_SRCS:.cpp=.o) $(ALGS:.cpp=.o) $(MQ_ADAPTERS:.cpp=.o))
+DEBUG_MQ_OBJS := $(addprefix build/debug/,$(MQ_SRCS:.cpp=.o) $(ALGS:.cpp=.o) $(MQ_ADAPTERS:.cpp=.o))
 RELEASE_MQ_LEADER_OBJS := $(addprefix build/release/,$(MQ_LEADER_SRCS:.cpp=.o))
 DEBUG_MQ_LEADER_OBJS := $(addprefix build/debug/,$(MQ_LEADER_SRCS:.cpp=.o))
 

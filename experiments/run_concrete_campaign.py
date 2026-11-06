@@ -33,6 +33,10 @@ def main():
                         help="k to run (repeatable; default: 3 5 7)")
     parser.add_argument("--repeat", type=int,
                         help="Run each experiment this many times (separate results and CSVs)")
+    parser.add_argument("--n", type=int, default=100,
+                        help="Network size: 100 = topologies_100, otherwise cluster/inputs_n<n>")
+    parser.add_argument("--run", type=int,
+                        help="Number of this run of the whole campaign (separate results and CSVs)")
     args, rest = parser.parse_known_args()
     # BoostMq results are stored under "concrete" (its name before ZeroMQ existed).
     if args.backend == "boostMq":
@@ -41,6 +45,12 @@ def main():
     if args.repeat:
         tag = f"_repeat{args.repeat}"
         rest = [*rest, "--repeat", str(args.repeat)]
+    if args.n != 100:
+        tag += f"_n{args.n}"
+        rest = [*rest, "--n", str(args.n)]
+    if args.run:
+        tag += f"_run{args.run:02d}"
+        rest = [*rest, "--run", str(args.run)]
     for algorithm in args.algorithm or ("cpa", "dolev"):
         csv_dir = CSV_DIRS[algorithm]
         csv_dir.mkdir(parents=True, exist_ok=True)

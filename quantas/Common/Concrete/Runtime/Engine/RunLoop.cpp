@@ -1,6 +1,7 @@
 // Run loop implementation.
 
 #include "quantas/Common/Concrete/Runtime/Engine/RunLoop.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/AlgorithmAdapter.hpp"
 #include "quantas/Common/RoundManager.hpp"
 #include <algorithm>
 #include <stdexcept>
@@ -42,7 +43,7 @@ std::chrono::steady_clock::duration runForDuration(std::vector<Peer*>& localPeer
 
         peer.tryPerformComputation();
 
-        if (!deliveryReported && peer.localProtocolCompleted()) {
+        if (!deliveryReported && protocolCompleted(peer)) {
             deliveryTime = std::chrono::steady_clock::now() - startTime;
             coordinator.notifyBrbDelivered(peer.publicId());
             deliveryReported = true;

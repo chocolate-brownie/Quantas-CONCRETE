@@ -8,6 +8,8 @@ Output: experiments/figures/cluster/figure_cluster_k3_n20.{pdf,png}
 from pathlib import Path
 import sys
 
+import re
+
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -26,7 +28,9 @@ def main():
     fig, axes = plt.subplots(2, 4, figsize=(W * 4, H * 2.5))
     for row, (alg, directory) in zip(axes, CSV.items()):
         data = pd.concat(pd.read_csv(path) for path in sorted(directory.glob("cluster_*_k3.csv"))
-                         if "_repeat" not in path.name)
+                         # only the first n = 20 run, not later cluster_n<n>_* campaigns
+                         if re.fullmatch(r"cluster_(edge_remover|erdos_renyi|random_regular)_k3\.csv",
+                                         path.name))
         data = data[data.status == "success"]
         means = data.groupby(["family", "network_group", "byzantine_count"]).mean(numeric_only=True)
         for ax, (column, title, ylabel, ylim) in zip(row, PANELS):

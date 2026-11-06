@@ -1,0 +1,102 @@
+% UML class diagram of QUANTAS: Abstract simulation and Concrete backends around a shared core,
+% in the style of Figure 1 of the QUANTAS paper.
+% Full text width: use inside figure*, with \input{figures/quantas-uml}.
+% Needs \usepackage{tikz} and \usetikzlibrary{arrows.meta} in the preamble.
+\begin{tikzpicture}[
+    x=1cm, y=1cm, font=\scriptsize,
+    cls/.style={draw, align=flush center, text width=#1, inner sep=2pt, minimum height=1.1cm},
+    cls/.default=2.1cm,
+    prog/.style={cls=#1, rounded corners=4pt, fill=black!6},
+    prog/.default=2.1cm,
+    abs/.style={fill=blue!8},
+    con/.style={fill=orange!14},
+    inherit/.style={-{Triangle[open, length=2.4mm, width=2.4mm]}},
+    realize/.style={dashed, inherit},
+    compose/.style={{Diamond[fill=black, length=2.8mm, width=1.9mm]}-},
+    aggregate/.style={{Diamond[open, length=2.8mm, width=1.9mm]}-},
+    depend/.style={dashed, -{Straight Barb[length=1.6mm]}},
+    tag/.style={midway, above, inner sep=1.5pt},
+  ]
+  \newcommand{\umlname}[1]{\textbf{#1}}
+  \newcommand{\umltag}[1]{\guillemotleft #1\guillemotright}
+
+  % Columns.
+  \def\ca{1.2} \def\cb{3.7} \def\cc{6.2} \def\cd{8.7} \def\ce{11.2} \def\cf{13.7} \def\cg{16.2}
+
+  % Programs (not classes).
+  \node[prog, abs] (absmain) at (\ca, 11.2) {\umlname{abstractSimulation}\\One process for all peers};
+  \node[prog=2.3cm, con] (peermain) at (10.6, 11.2) {\umlname{PeerMain + RunLoop}\\One peer process};
+  \node[prog=2.3cm, con] (leadermain) at (\cg, 11.2) {\umlname{LeaderMain}\\Plans the topology, writes the report};
+
+  % Abstract simulation.
+  \node[cls, abs] (simulation) at (\cb, 11.2) {\umlname{Simulation}\\Runs tests in rounds};
+  \node[cls, abs] (network) at (\ca, 8.9) {\umlname{Network}\\Holds the peers};
+  \node[cls, abs] (netabs) at (\ca, 3.9) {\umlname{NetworkInterface\-Abstract}\\Simulated channels};
+  \node[cls, abs] (channel) at (\ca, 1.4) {\umlname{Channel}\\Delay, drop, duplicate, reorder};
+
+  % Shared core.
+  \node[cls=2.1cm] (peer) at (\cb, 8.9) {\umltag{abstract}\\\umlname{Peer}\\Runs the algorithm};
+  \node[cls=2.1cm] (netif) at (\cb, 6.4) {\umltag{abstract}\\\umlname{NetworkInterface}\\Sends and receives};
+  \node[cls=2.1cm] (packet) at (\ca, 6.4) {\umlname{Packet}\\Source, target, message};
+
+  % User-provided algorithms.
+  \node[cls=1.9cm, minimum height=0.7cm] (cpa) at (\cc, 9.35) {\umlname{CPAPeer}};
+  \node[cls=1.9cm, minimum height=0.7cm] (dolev) at (\cc, 8.45) {\umlname{DolevPeer}};
+  \draw[dashed] (5.0, 7.95) rectangle (7.4, 10.25);
+  \node[anchor=north] at (\cc, 7.95) {\umltag{user-provided}};
+
+  % Concrete: algorithm adapters.
+  \node[cls, con] (cpaadapter) at (\cd, 8.9) {\umlname{CPAPeerAdapter}\\Reads CPAPeer's state};
+  \node[cls, con] (adapter) at (\ce, 8.9) {\umlname{AlgorithmAdapter}\\Finished? Report values};
+
+  % Concrete: interfaces.
+  \node[cls=2.3cm, con] (backend) at (9.95, 6.4) {\umltag{interface}\\\umlname{Backend}\\Builds coordinator and transport};
+  \node[cls=2.3cm, con] (coordinator) at (14.95, 6.4) {\umltag{interface}\\\umlname{Coordinator}\\Leader and peer control};
+  \node[cls=3.2cm, con] (measured) at (4.95, 1.4) {\umltag{interface}\\\umlname{MeasuredTransport}\\Reports sent, received, dropped};
+
+  % Concrete: backend implementations.
+  \node[cls=2.3cm, con] (netbmq) at (\cb, 3.9) {\umlname{NetworkInterface\-BMq}\\One data queue per peer};
+  \node[cls=2.3cm, con] (netzmq) at (\cc, 3.9) {\umlname{NetworkInterface\-ZMq}\\PULL inbox, PUSH per neighbour};
+  \node[cls=2.3cm, con] (backbmq) at (\cd, 3.9) {\umlname{BoostMqBackend}\\Boost.Interprocess queues};
+  \node[cls=2.3cm, con] (backzmq) at (\ce, 3.9) {\umlname{ZMqBackend}\\\texttt{ipc://} or \texttt{tcp://}};
+  \node[cls=2.3cm, con] (coordbmq) at (\cf, 3.9) {\umlname{BoostMq\-Coordinator}\\Control queues};
+  \node[cls=2.3cm, con] (coordzmq) at (\cg, 3.9) {\umlname{ZMqCoordinator}\\ROUTER and DEALER};
+
+  % Legend.
+  \node[draw, abs, minimum size=2.5mm, inner sep=0pt] (la) at (9.2, 1.4) {};
+  \node[anchor=west] at (la.east) {Abstract};
+  \node[draw, con, minimum size=2.5mm, inner sep=0pt] (lc) at (11.0, 1.4) {};
+  \node[anchor=west] at (lc.east) {Concrete};
+  \node[draw, minimum size=2.5mm, inner sep=0pt] (ls) at (12.85, 1.4) {};
+  \node[anchor=west] at (ls.east) {Shared};
+
+  % Inheritance.
+  \foreach \child/\parent in {netabs/netif, netbmq/netif, netzmq/netif, backbmq/backend, backzmq/backend, coordbmq/coordinator, coordzmq/coordinator}
+    \draw[inherit] (\child.north) -- (\child.north |- 0,5.15) -- (\parent.south |- 0,5.15) -- (\parent.south);
+  \foreach \child in {netbmq, netzmq}
+    \draw[inherit] (\child.south) -- (\child.south |- 0,2.6) -- (measured.north |- 0,2.6) -- (measured.north);
+  \foreach \child in {cpa, dolev}
+    \draw[inherit] (\child.west) -| (4.9, 8.9) -- (peer.east);
+
+  % Composition and aggregation.
+  \draw[compose] (simulation.south) -- (\cb, 9.95) -- (\ca, 9.95) -- (network.north);
+  \draw[compose] (network.east) -- (peer.west);
+  \draw[compose] (peer.south) -- (netif.north);
+  \draw[compose] (netif.west) -- (packet.east);
+  \draw[aggregate] (netabs.south) -- (channel.north);
+
+  % Dependencies.
+  \draw[depend] (absmain.east) -- (simulation.west);
+  \draw[depend] (backend.west) -- node[tag] {\umltag{create}} (netif.east);
+  \draw[depend] (backend.east) -- node[tag] {\umltag{create}} (coordinator.west);
+  \draw[depend] (cpaadapter.west |- cpa.east) -- (cpa.east);
+  \draw[realize] (cpaadapter.east) -- (adapter.west);
+
+  % Dependencies of the Concrete programs.
+  \draw[depend] (peermain.west) -- (5.3, 11.2) -- (5.3, 10.6) -- (4.1, 10.6) -- (4.1, 9.45);
+  \draw[depend] (\ce, 10.65) -- (adapter.north);
+  \draw[depend] (9.95, 10.65) -- (backend.north);
+  \draw[depend] (peermain.east) -- (14.6, 11.2) -- (14.6, 6.95);
+  \draw[depend] (16.0, 10.65) -- (16.0, 6.95);
+  \draw[depend] (15.3, 10.65) -- (15.3, 7.6) -- (10.4, 7.6) -- (10.4, 6.95);
+\end{tikzpicture}

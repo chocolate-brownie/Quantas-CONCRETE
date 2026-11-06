@@ -4,20 +4,21 @@ This section shows how to prepare an algorithm, write an input file, run an expe
 
 ## Preparing an algorithm
 
-An algorithm for Concrete QUANTAS is a `Peer` subclass, as in Abstract QUANTAS. It uses the same `performComputation()` method and the same messaging calls, such as `broadcast` and `unicastTo`. Two optional methods connect it to the Concrete runtime:
+An algorithm for Concrete QUANTAS is written exactly as for Abstract QUANTAS: a `Peer` subclass with `performComputation()`, using the same messaging calls, such as `broadcast` and `unicastTo`. Its files are not changed. The MT-CPA code we run on all backends is the original Abstract implementation, byte for byte.
+
+The Concrete runtime needs two answers that the algorithm's own code does not give: whether a peer has finished, so the leader can stop a test once every correct peer has, and which values to put in the report. An *algorithm adapter* provides them in a separate file, `Concrete/Adapters/<Name>Adapter.cpp`, by reading the algorithm's public state. For MT-CPA:
 
 ```cpp
-class CPAPeer : public Peer {
-  public:
-    void performComputation() override;
-
-    // Concrete hooks
-    bool localProtocolCompleted() const override;   // has this peer finished?
-    nlohmann::json collectAlgoMetrics() const override;   // results for the report
-};
+static const bool registered = registerAlgorithmAdapter<CPAPeer>(
+    [](const CPAPeer& peer) { return peer.delivered; },    // finished?
+    [](const CPAPeer& peer) {                               // values for the report
+        return nlohmann::json{{"delivered", peer.delivered},
+                              {"delivered_value", peer.mDelivered},
+                              {"messages_sent", peer.msgsSent}, ...};
+    });
 ```
 
-`localProtocolCompleted()` tells the runtime when to send DELIVERED to the leader, so the experiment can stop as soon as all correct peers have finished. `collectAlgoMetrics()` returns the values that the leader adds to its report.
+The build links the adapter of every algorithm named in the input. An algorithm without an adapter still runs, but the leader cannot stop a test early, and the report has no algorithm values.
 
 ## Writing an input file
 
@@ -25,7 +26,7 @@ Concrete QUANTAS uses the same JSON format as Abstract QUANTAS, with a few addit
 
 ```json
 {
-  "algorithms": ["MTRCPeer/CPAPeer/CPAPeer.cpp"],
+  "algorithms": ["CPAPeer/CPAPeer.cpp"],
   "experiments": [{
     "backend": "zeroMq",
     "windowMs": 2000,

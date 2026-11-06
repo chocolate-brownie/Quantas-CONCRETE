@@ -5,7 +5,8 @@
 fail=0
 
 echo "node: $(hostname)  folder: $(pwd)"
-echo "open files limit: $(ulimit -n)  (20 peers need about 40 each)"
+echo "open files limit: $(ulimit -n)"
+df -h /dev/shm  # BoostMq at n = 100 reserves about 7.8 GB here
 
 for tool in g++ make python3 oarsh; do
 	if command -v "$tool" >/dev/null; then

@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Generate the cluster inputs: Lorenzo's k = 3 setup with n = 20 peers instead of 100.
+"""Generate the cluster inputs: Lorenzo's k = 3 setup with n peers instead of 100 (default 20).
 
 Same search as his generate_quantas_net_*.py: start at d = 10 or p = 0.10 and raise it until 1,000
 attempts give 10 valid networks; the edge remover trims a complete graph. Same input format,
 thresholds (t_s + t_l = k - 1), t = 1 to 2k - 1, 10 `both` + 10 `dolev` networks per file, and random
 Byzantine peers excluding the sender. His generators run on import, so only the checks are reused.
 
-Run on a machine with quantas_mtrc-main/: .venv/bin/python experiments/cluster/generate_inputs.py
+Run on a machine with quantas_mtrc-main/: .venv/bin/python experiments/cluster/generate_inputs.py [--n 50]
+n = 20 writes inputs/ (the first cluster run); any other n writes inputs_n<n>/.
 """
+
+import argparse
 
 import copy
 import json
@@ -106,6 +109,12 @@ def experiment(template, algorithm, family, group, network_id, graph, t):
 
 
 def main():
+    global N, OUTPUT
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--n", type=int, default=N, help="number of peers (default 20)")
+    N = parser.parse_args().n
+    if N != 20:
+        OUTPUT = OUTPUT.with_name(f"inputs_n{N}")
     random.seed(SEED)
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))["experiments"][0]
     OUTPUT.mkdir(exist_ok=True)

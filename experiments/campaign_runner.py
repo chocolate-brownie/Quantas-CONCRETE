@@ -117,8 +117,15 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
 
-def input_paths(algorithm, family, k, max_t):
-    paths = [TOPOLOGY_DIR / f"{algorithm}_{family}_n100_k{k}_t{t}.json"
+def topology_dir(n):
+    """Lorenzo's topologies_100 for n = 100; the cluster inputs (generate_inputs.py) otherwise."""
+    if n == 100:
+        return TOPOLOGY_DIR
+    return REPO_ROOT / "experiments/cluster" / ("inputs" if n == 20 else f"inputs_n{n}")
+
+
+def input_paths(algorithm, family, k, max_t, n=100):
+    paths = [topology_dir(n) / f"{algorithm}_{family}_n{n}_k{k}_t{t}.json"
              for t in range(1, max_t + 1)]
     for path in paths:
         if not path.is_file():
@@ -148,7 +155,10 @@ def effective_input(original, index, backend, within_bounds=False):
     experiment = config["experiments"][index]
     peer = experiment["topology"]["initialPeerType"]
     config["algorithms"] = [
-        f"{peer}/{peer}.cpp" if backend == "abstract" else f"MTRCPeer/{peer}/{peer}.cpp"
+        # CPA runs Lorenzo's unchanged code on every backend (Concrete adds its adapter); Concrete
+        # Dolev still uses the port in MTRCPeer/.
+        f"MTRCPeer/{peer}/{peer}.cpp" if backend != "abstract" and peer == "DolevPeer"
+        else f"{peer}/{peer}.cpp"
     ]
     config["experiments"] = [experiment]
     if backend != "abstract":
@@ -425,8 +435,8 @@ def execute_experiment(backend, path, original, index, base, directory, binaries
 
 
 def run(backend, algorithm, family, k, max_t, limit_experiments, campaign_dir, csv_path, abstract_root,
-        pairs=None, within_bounds=False, repeat=None):
-    paths = input_paths(algorithm, family, k, max_t)
+        pairs=None, within_bounds=False, repeat=None, n=100):
+    paths = input_paths(algorithm, family, k, max_t, n)
     root = abstract_root if backend == "abstract" else REPO_ROOT
     identity = source_identity(root)
     originals = {path: read_json(path) for path in paths}
@@ -455,7 +465,7 @@ def run(backend, algorithm, family, k, max_t, limit_experiments, campaign_dir, c
 
     campaign_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = campaign_dir / "manifest.json"
-    selection = {"algorithm": algorithm, "family": family, "n": 100, "k": k}
+    selection = {"algorithm": algorithm, "family": family, "n": n, "k": k}
     manifest = read_json(manifest_path) if manifest_path.exists() else {
         "version": 1,
         "selection": selection,
@@ -571,6 +581,11 @@ def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover
         type=positive_int,
         help="Run each experiment this many times (kept apart from the single-run results)",
     )
+    parser.add_argument("--n", type=positive_int, default=100,
+                        help="Network size: 100 = topologies_100, otherwise cluster/inputs_n<n>")
+    parser.add_argument("--run", type=positive_int,
+                        help="Number of this run of the whole campaign (kept apart, for confidence "
+                             "intervals over runs)")
     args = parser.parse_args(argv)
     if args.within_bounds and backend == "abstract":
         parser.error("--within-bounds is for the Concrete backends")
@@ -581,6 +596,10 @@ def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover
     runs = "topologies_100_within_bounds" if args.within_bounds else "topologies_100"
     if args.repeat:
         runs = f"topologies_100_repeat{args.repeat}"
+    if args.n != 100:
+        runs = runs.replace("topologies_100", f"n{args.n}")
+    if args.run:
+        runs += f"_run{args.run:02d}"
     campaign_dir = REPO_ROOT / "Results/run_experiments" / runs / algorithm / family / f"k{k}"
     lock_path = REPO_ROOT / "Results/.edge-remover-runner.lock"
     lock_path.parent.mkdir(exist_ok=True)
@@ -608,6 +627,7 @@ def run_campaign(backend, k, max_t, script_file, argv=None, family="edge_remover
                 args.pair,
                 args.within_bounds,
                 args.repeat,
+                args.n,
             )
         except KeyboardInterrupt:
             print(

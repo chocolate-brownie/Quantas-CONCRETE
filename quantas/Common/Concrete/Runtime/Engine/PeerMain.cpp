@@ -1,5 +1,6 @@
 #include "quantas/Common/Concrete/Runtime/Config/RuntimeConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Engine/RunLoop.hpp"
+#include "quantas/Common/Concrete/Runtime/Interfaces/AlgorithmAdapter.hpp"
 #include "quantas/Common/Concrete/Runtime/Interfaces/Backend.hpp"
 #include "quantas/Common/Concrete/Runtime/Interfaces/Coordinator.hpp"
 #include "quantas/Common/Concrete/Runtime/Interfaces/MeasuredTransport.hpp"
@@ -200,9 +201,9 @@ void emitFinalExperimentMetrics(const std::chrono::high_resolution_clock::time_p
     quantas::LogWriter::setValue(
         "transportMetrics", quantas::makeTransportMetricsJson(transportMetrics, dataQueueCapacity));
 
-    quantas::LogWriter::setValue("algorithmMetrics", localPeers.front()->collectAlgoMetrics());
+    quantas::LogWriter::setValue("algorithmMetrics", quantas::algorithmMetrics(*localPeers.front()));
 
-    if (localPeers.front()->localProtocolCompleted()) {
+    if (quantas::protocolCompleted(*localPeers.front())) {
         quantas::LogWriter::setValue(
             "brbDeliveryTimeMs",
             std::chrono::duration<double, std::milli>(brbDeliveryTimeMs).count());

@@ -6,9 +6,13 @@ Concrete QUANTAS runs QUANTAS algorithms on real operating system processes. Its
 
 In Abstract QUANTAS [@quantas], a single process simulates every peer in rounds, and channels model message delay. An algorithm is a subclass of `Peer` that implements `performComputation()` and sends messages through a `NetworkInterface`.
 
-Concrete QUANTAS keeps this programming model. An algorithm is still a `Peer` subclass using the same `NetworkInterface` calls. Porting one to Concrete means adding two small hooks: `localProtocolCompleted()`, which reports that the peer has finished, and `collectAlgoMetrics()`, which returns its results.
+Concrete QUANTAS keeps this programming model, and an algorithm written for Abstract QUANTAS runs on it unchanged. The runtime needs only two answers that a generic `Peer` cannot give: whether a peer has finished, so that the leader can stop a test once every correct peer has, and which values to report. A small *algorithm adapter*, kept in its own file, provides them by reading the algorithm's public state, much as an Abstract algorithm's results file reads it at the end of a simulation.
 
 The execution model is what changes. Each peer is its own process, and a separate leader process coordinates them. A launcher starts these processes from one JSON input file. The leader validates the input, plans the topology and writes the final report. Each peer runs a loop: receive pending messages, perform its computation, report delivery the first time it happens, and repeat every 10 ms until it is told to stop or its time window ends. Time is therefore real rather than simulated: delays come from the system, and an experiment is bounded by a time window instead of a number of rounds.
+
+## One architecture for both
+
+Figure 1 shows QUANTAS as a whole. The algorithms, `Peer`, `NetworkInterface` and `Packet` are shared. Abstract QUANTAS adds a single program in which `Simulation` runs the tests in rounds, `Network` holds the peers, and `NetworkInterfaceAbstract` connects them through `Channel` objects that model delay, loss, duplication and reordering. Concrete QUANTAS replaces this with a leader process, one process per peer, the algorithm adapters and the backend interfaces described next.
 
 ## Backend interface
 
@@ -20,8 +24,8 @@ The runtime talks to a backend through three interfaces, shown in Figure 1:
 
 Because `Backend` creates a matching coordinator and transport, the leader, the peer loop and the algorithms depend only on these interfaces. Adding a backend means implementing them and adding one line to the factory.
 
-![[figures/concrete-uml.pdf#height=450]]
-*Figure 1: UML class diagram of Concrete QUANTAS. Hollow triangles show inheritance, filled diamonds composition, and dashed arrows dependencies. Grey boxes are programs, not classes.*
+![[figures/quantas-uml.pdf#height=450]]
+*Figure 1: UML class diagram of QUANTAS. Blue classes belong to Abstract QUANTAS, orange ones to Concrete QUANTAS, and white ones are shared. Hollow triangles show inheritance (dashed: `CPAPeerAdapter` provides an `AlgorithmAdapter`), filled diamonds composition, the hollow diamond aggregation, and dashed arrows dependencies. Boxes with rounded corners are programs, not classes.*
 
 ## Control protocol
 
