@@ -18,6 +18,20 @@ inputs=experiments/cluster/inputs_n$n
 [ "$n" = 20 ] && inputs=experiments/cluster/inputs
 done_dir=Results/run_experiments/done
 mkdir -p "$done_dir"
+
+# Check that the job key reaches every node before the idle time; stop at once if one refuses.
+key=$HOME/.quantas_job_key
+ls -l --time-style=full-iso "$key" || exit 1
+for node in $(sort -u "$OAR_NODE_FILE"); do
+	[ "${node%%.*}" = "$(hostname -s)" ] && continue
+	ok=no
+	for attempt in 1 2 3; do
+		reply=$(oarsh -i "$key" "$node" hostname 2>&1) && { ok=yes; break; }
+		sleep 10
+	done
+	echo "oarsh $node (attempt $attempt): $reply"
+	[ "$ok" = yes ] || { echo "Node check failed"; exit 1; }
+done
 idle=${IDLE_START:-1800}
 for run in $(seq 1 "$runs"); do
 	marker=$done_dir/cluster_n${n}_k${k}_${pair/,/_}_run${run}

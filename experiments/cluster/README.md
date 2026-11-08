@@ -143,6 +143,9 @@ Raw data stays in `~/Quantas/Results/run_experiments/`. Each leader report recor
 - **`Disk quota exceeded`:** see step 1.
 - **`Expected at least 2 nodes`:** the N-node job got 1 node; check its `-l` option.
 - **`Missing .../.quantas_job_key`:** submit the job with `-k -e ~/.quantas_job_key`.
+- **`Node check failed`:** `job_passive.sh` checks `oarsh` to every node before idling. Job 1418843
+  (2026-11-07) lost 6 of 10 peer nodes to `Permission denied (publickey…)`; compare the key file's
+  printed time with the submission time, and submit nothing else while the job runs.
 - **An experiment says `FAILED`:** look in its folder for `leader.log`, `node_*.log` and `node_*.err`.
 
 ## Try it without the cluster
