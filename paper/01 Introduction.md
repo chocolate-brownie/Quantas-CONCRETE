@@ -1,9 +1,0 @@
-# Introduction
-
-<!-- Guiding questions (answer in your own words, then delete):
-- What does abstract simulation (QUANTAS [@quantas]) do well, and what does it leave out?
-- Why is running an algorithm on a real system hard to set up and to compare?
-- What does Concrete QUANTAS add? (one algorithm source, Abstract and Concrete runtimes)
-- What is the evaluation and its main result? (same machine: BoostMq; cluster: ZeroMQ)
-- Contributions as a short list. -->
-TODO

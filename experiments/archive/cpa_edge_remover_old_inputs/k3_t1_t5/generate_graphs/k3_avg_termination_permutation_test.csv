@@ -1,7 +1,0 @@
-scope,paired_runs,nonzero_pairs,abstract_mean_percent,concrete_mean_percent,mean_difference_percentage_points,bootstrap_ci95_low,bootstrap_ci95_high,permutation_p_value_two_sided,exact_permutations,alpha,significant_at_alpha
-t=1,200,0,100,100,0,0,0,1,1,0.001,False
-t=2,200,0,100,100,0,0,0,1,1,0.001,False
-t=3,200,1,99.9794,100,-0.0206,-0.0618,0,1,2,0.001,False
-t=4,200,1,100,99.97915,0.02085,0,0.06255,1,2,0.001,False
-t=5,200,2,99.9579,99.9158,0.0421,0,0.10525,0.5,4,0.001,False
-pooled,1000,4,99.98746,99.97899,0.00847,-0.00815,0.02526,0.25,16,0.001,False
