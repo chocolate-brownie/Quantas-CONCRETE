@@ -1,0 +1,25 @@
+{
+  "algorithms": ["CPAPeer/CPAPeer.cpp"],
+  "experiments": [
+    {
+      "backend": "boostMq",
+      "logFile": "cpa_boostmq.json",
+      "tests": 2,
+      "rounds": 1000,
+      "threadCount": 1,
+      "distribution": {"type": "UNIFORM", "maxDelay": 1},
+      "topology": {"type": "complete", "initialPeers": 6, "initialPeerType": "CPAPeer"},
+      "parameters": {"sender": 0, "ts": 1, "tl": 1, "byzantines": [3]}
+    },
+    {
+      "backend": "zeroMq",
+      "logFile": "cpa_zeromq.json",
+      "tests": 2,
+      "rounds": 1000,
+      "threadCount": 1,
+      "distribution": {"type": "UNIFORM", "maxDelay": 1},
+      "topology": {"type": "complete", "initialPeers": 6, "initialPeerType": "CPAPeer"},
+      "parameters": {"sender": 0, "ts": 1, "tl": 1, "byzantines": [3]}
+    }
+  ]
+}
