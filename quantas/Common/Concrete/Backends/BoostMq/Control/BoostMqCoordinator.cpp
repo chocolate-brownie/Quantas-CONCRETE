@@ -1,18 +1,3 @@
-/* +--------------------------------------------------------------------------------------------+ */
-/* | /░░░░    /░/░    /█▀▀█    /░ /░    /░░░    /█▀▀█     /░░░                                  | */
-/* | │_▒ /▒   │ ▒ ▒   │ ▓▓▓▓   │ ▒▒ ▒   │//▒/   │ ▓▓▓▓    │ ▒_/                                 | */
-/* | │ ▓│ ▓   │ ▓ ▓   │_▒_/▒   │ ▓│▓▓    │ ▓    │_▒_/▒    │/_▓                                  | */
-/* | │ ████   │ ███   │ ░│ ░   │ █│ █    │ █    │ ░│ ░    /███                                  | */
-/* | │/_/▀/   │/__/   │//│//   │//│//    │//    │//│//   │/__/                                  | */
-/* |                                                                                            | */
-/* | File: BoostMqCoordinator.cpp                                                               | */
-/* | Organization: LIP6 Paris                                                                   | */
-/* | Author: Milan Godawatta                                                                    | */
-/* | Created: 2026-10-26 21:19                                                                  | */
-/* | Updated: 2026-10-26 21:19                                                                  | */
-/* | Description:                                                                               | */
-/* +--------------------------------------------------------------------------------------------+ */
-
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqCoordinator.hpp"
 #include "quantas/Common/Concrete/Backends/BoostMq/Control/BoostMqQueueConfig.hpp"
 #include "quantas/Common/Concrete/Runtime/Topology/PeerAssignment.hpp"

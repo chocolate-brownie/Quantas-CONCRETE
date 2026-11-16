@@ -1,19 +1,3 @@
-/* +--------------------------------------------------------------------------------------------+ */
-/* | /░░░░    /░/░    /█▀▀█    /░ /░    /░░░    /█▀▀█     /░░░                                  | */
-/* | │_▒ /▒   │ ▒ ▒   │ ▓▓▓▓   │ ▒▒ ▒   │//▒/   │ ▓▓▓▓    │ ▒_/                                 | */
-/* | │ ▓│ ▓   │ ▓ ▓   │_▒_/▒   │ ▓│▓▓    │ ▓    │_▒_/▒    │/_▓                                  | */
-/* | │ ████   │ ███   │ ░│ ░   │ █│ █    │ █    │ ░│ ░    /███                                  | */
-/* | │/_/▀/   │/__/   │//│//   │//│//    │//    │//│//   │/__/                                  | */
-/* |                                                                                            | */
-/* | File: ZMqCoordinator.cpp                                                                   | */
-/* | Organization: LIP6 Paris                                                                   | */
-/* | Author: Milan Godawatta                                                                    | */
-/* | Created: 2026-10-26 15:50                                                                  | */
-/* | Updated: 2026-10-27 11:55                                                                  | */
-/* | Description: Runs the leader/peer control protocol over one ZeroMQ ROUTER/DEALER pair      | */
-/* | (READY, assignments, START, DELIVERED, DONE, STOP, RELEASE).                               | */
-/* +--------------------------------------------------------------------------------------------+ */
-
 /* Control protocol (one test):
  *   peer → leader   READY
  *   leader → peer   assignment (Boost archive of PeerAssignment), then START
