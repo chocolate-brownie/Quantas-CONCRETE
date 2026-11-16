@@ -20,31 +20,51 @@ We use the MT-CPA algorithm and the experimental setup of Multi-Threshold Reliab
 - *One node:* Abstract, BoostMq and ZeroMQ over `ipc://` run on the same node, one after another and never in parallel. The leader and the 50 peers are processes on that node.
 - *11 nodes:* ZeroMQ over `tcp://`. The leader runs on one node and the 50 peers on the 10 others, 5 per node: peer i runs on node i mod 10. Only the addresses in the input change; the inputs and settings are those of the one-node run.
 
-**Machine.** Each `small` node has ==TODO: CPU, cores, RAM== and runs ==TODO: OS==, with ==TODO: compiler==.
-
-> [!todo] Fill in after the runs
-> Node hardware from `lscpu` and `free -h` on a `small` node; OS and `g++ --version`. Runs: `experiments/cluster/README.md`.
+**Machine.** Each `small` node has an Intel Xeon E5645 processor at 2.40 GHz with 24 logical CPUs and 62 GB of RAM. It runs Debian, and we compile with g++ 14.2.0. The two jobs ran one after the other: the one-node job first, then the 11-node job, each on its own nodes.
 
 ## Correctness
 
 We first check that the Concrete backends meet the guarantees of MT-CPA when its conditions hold. We run every experiment within bounds, with $f \le \min(t_s, t_l)$, on `both` networks and with no time limit, for k = 3, 5 and 7. In this setting every run must reach 100% liveness and 100% safety.
 
-Both backends pass: BoostMq and ZeroMQ each complete 420 of 420 experiments at 100% liveness and 100% safety, with no failures.
+Both backends pass: BoostMq and ZeroMQ each complete 420 of 420 experiments at 100% liveness and 100% safety, with no failures. This check ran once per experiment on a laptop (Intel Core Ultra 5 228V, 8 cores, 30 GB of RAM).
 
-> [!todo] Correctness ran on the laptop, once per experiment
-> Either rerun it on a cluster node, or state here that it ran on the laptop (Intel Core Ultra 5 228V, 8 cores, 30 GB). The 10 runs also check it: at f = 1, which is within bounds for $(1, 1)$, every run on a `both` network must reach 100%.
+The 10 runs on the cluster confirm it at n = 50. With f = 1, MT-CPA is within bounds for $(1, 1)$, and on every `both` network, in every run, all four backends and deployments reach 100% liveness and 100% safety.
 
 ## Abstract vs Concrete on one node
 
-> [!todo] Results of the one-node run
-> Liveness, safety, delivery and messages for Abstract, BoostMq and ZeroMQ (`ipc://`), with 95% confidence intervals over the 10 runs. Figures in the style of Figures 2 and 3 of [@opodis-mtrc].
+Every one of the 9,000 experiments (300 per run, 10 runs, 3 backends) completed without a failure. Figure 2 shows the results.
+
+![[figures/n50_one_node.pdf#height=520]]
+*Figure 2: MT-CPA with n = 50, k = 3 and $(t_s, t_l) = (1, 1)$ on one cluster node, for Abstract, BoostMq and ZeroMQ over `ipc://`. Each point is the mean over 10 runs of the mean over the 10 networks of one family and network type; error bars are 95% confidence intervals over the runs. Delivery is in rounds for Abstract and in milliseconds for BoostMq and ZeroMQ.*
+
+**Liveness** is the same on the three backends. The mean over all experiments is 99.7% on Abstract and 99.6% on BoostMq and ZeroMQ. Liveness falls below 100% only on `dolev` networks, which lack the k-level ordering MT-CPA needs; on `both` networks it is 100% at every f.
+
+**Messages** are the same as well. A correct peer sends 8.35 messages on average on every backend. Per experiment, the mean over runs differs from Abstract by 0.02% on average and by at most 3.1% (BoostMq) and 3.9% (ZeroMQ).
+
+**Safety** is 100% at f = 1 on all three backends and decreases as f grows past $t_s = 1$, to between 73% and 76% at f = 5. Between these ends, the backends differ by more than the confidence intervals. Averaged over all networks, safety at f = 3 is 82.2% on Abstract, 91.2% on BoostMq and 78.0% on ZeroMQ.
+
+**Delivery** cannot be compared in value between Abstract and Concrete, but its shape can. On every backend, the `dolev` Erdős–Rényi networks are the slowest, and delivery becomes faster from f = 2 to f = 5. Averaged over all networks, a peer delivers after 10.4 to 14.3 rounds on Abstract, 10.4 to 11.8 ms on BoostMq and 16.7 to 19.6 ms on ZeroMQ, depending on f.
 
 ## ZeroMQ across 11 nodes
 
-> [!todo] Results of the 11-node run
-> The same metrics for ZeroMQ over `tcp://`, compared with ZeroMQ over `ipc://` on one node: does the implementation complete every run, and does moving the peers across machines change the results?
+ZeroMQ over `tcp://` also completed all 3,000 experiments without a failure, with the leader on one node and 5 peers on each of the 10 others. Figure 3 shows the results, on the same axes as Figure 2.
+
+![[figures/n50_tcp.pdf#height=200]]
+*Figure 3: The experiments of Figure 2 on ZeroMQ over `tcp://`, across 11 cluster nodes. Same metrics, aggregation and confidence intervals.*
+
+Moving the peers across machines leaves liveness and messages unchanged: liveness averages 99.6% and a correct peer sends 8.35 messages, as on one node. Delivery is slower, 17.7 to 22.3 ms against 16.7 to 19.6 ms over `ipc://`. Safety is lower once f exceeds $t_s$: at f = 4 it averages 65.6%, against 73.0% over `ipc://` and 77.4% on Abstract.
 
 ## Execution time
 
-> [!todo] Execution time
-> Total and per-run time of each backend and deployment, including process start-up (`run_time_s` in the CSVs).
+Table 1 gives the time one run of the 300 experiments takes on each backend, measured from the launch of each experiment until all its processes have exited. Between runs it ranges from 138 to 153 s on Abstract, 258 to 263 s on BoostMq, 138 to 144 s on ZeroMQ over `ipc://` and 1,245 to 1,252 s over `tcp://`.
+
+| Backend | Deployment | Time per run (s) | Per experiment (s) |
+|---|---|---|---|
+| Abstract | one node | 149 | 0.50 |
+| BoostMq | one node | 260 | 0.87 |
+| ZeroMQ `ipc://` | one node | 141 | 0.47 |
+| ZeroMQ `tcp://` | 11 nodes | 1,249 | 4.16 |
+
+*Table 1: Mean execution time over the 10 runs. Builds are not included.*
+
+On one node, ZeroMQ is as fast as Abstract. On 11 nodes, this time also includes starting and stopping the peers on the 10 remote nodes over `oarsh` for every experiment.

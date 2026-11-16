@@ -7,7 +7,7 @@ run, the mean over the 10 networks of one (family, network type, f); then the me
 with a 95% confidence interval mean +- t_{0.975,9} * s / sqrt(10), s = standard deviation over runs.
 
 Input: experiments/CPA/csv/{abstract,concrete,zeroMq}_n50_runNN_<family>_k3.csv (concrete = BoostMq) and
-cluster_n50_10nodes_runNN_<family>_k3.csv. Output: paper/figures/n50_results.{pdf,png}.
+cluster_n50_10nodes_runNN_<family>_k3.csv. Output: paper/figures/n50_one_node.{pdf,png} (first three) and n50_tcp.{pdf,png}.
 """
 
 from pathlib import Path
@@ -22,7 +22,7 @@ from figures_2_3 import FT, H, LINES, W, save
 
 REPO = Path(__file__).resolve().parents[2]
 CSV = REPO / "experiments/CPA/csv"
-OUT = REPO / "paper/figures/n50_results"
+OUT = REPO / "paper/figures"
 RUNS, NETWORKS, T_VALUES = 10, 10, list(range(1, 6))
 T_975_9 = 2.262  # Student t, 95% two-sided, 9 degrees of freedom
 METRICS = ["liveness", "safety", "delivery", "msgs"]
@@ -49,11 +49,9 @@ def load(prefix, columns):
     return grouped.mean(), T_975_9 * grouped.std(ddof=1) / RUNS ** 0.5
 
 
-def main():
-    data = {prefix: load(prefix, columns) for prefix, _, _, columns in BACKENDS}
-    msg_top = max(float((m + ci)["msgs"].max()) for m, ci in data.values()) * 1.05
-    fig, axes = plt.subplots(len(BACKENDS), 4, figsize=(W * 4, H * len(BACKENDS)))
-    for row, (prefix, name, unit, _) in enumerate(BACKENDS):
+def figure(path, backends, data, msg_top):
+    fig, axes = plt.subplots(len(backends), 4, figsize=(W * 4, H * len(backends)), squeeze=False)
+    for row, (prefix, name, unit, _) in enumerate(backends):
         mean, ci = data[prefix]
         panels = [("Liveness", "AvgLiveness (%)"), ("Safety", "AvgSafety (%)"),
                   ("Delivery", f"Avg Delivery \n ({unit})"), ("Messages", "AvgMessages")]
@@ -77,9 +75,16 @@ def main():
     labels = [f"{family}_{group}" for family, group, _ in LINES]
     fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 1), ncol=3,
                frameon=True, fontsize=FT)
-    fig.subplots_adjust(top=1 - 0.42 / len(BACKENDS), wspace=0.45, hspace=0.6)
-    save(fig, OUT)
-    print(f"Saved {OUT}.{{pdf,png}}")
+    fig.subplots_adjust(top=1 - 0.42 / len(backends), wspace=0.45, hspace=0.6)
+    save(fig, path)
+    print(f"Saved {path}.{{pdf,png}}")
+
+
+def main():
+    data = {prefix: load(prefix, columns) for prefix, _, _, columns in BACKENDS}
+    msg_top = max(float((m + ci)["msgs"].max()) for m, ci in data.values()) * 1.05  # same axis in both
+    figure(OUT / "n50_one_node", BACKENDS[:3], data, msg_top)
+    figure(OUT / "n50_tcp", BACKENDS[3:], data, msg_top)
     for prefix, name, _, _ in BACKENDS:
         print(name, "largest CI half-width:", data[prefix][1].max().round(2).to_dict())
 

@@ -139,7 +139,7 @@ One node: `{abstract,concrete,zeroMq}_n50_runNN_<family>_k3.csv` (`concrete` = B
 N nodes: `cluster_n50_10nodes_runNN_<family>_k3.csv`. One row per experiment and run.
 Raw data stays in `~/Quantas/Results/run_experiments/`. Each leader report records its hosts.
 Done: one node = job 1418841, 11 nodes = job 1418864 (2026-11-08), 3,000 experiments each, all
-`success`. Figure with 95% CIs: `experiments/figures/figures_n50.py` → `paper/figures/n50_results`.
+`success`. Figure with 95% CIs: `experiments/figures/figures_n50.py` → `paper/figures/n50_{one_node,tcp}`.
 
 ## If something goes wrong
 - **`Disk quota exceeded`:** see step 1.
